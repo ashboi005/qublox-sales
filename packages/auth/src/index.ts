@@ -16,7 +16,7 @@ export type AuthConfig = {
 export function createAuth(
   env: AuthConfig,
   database: Database,
-  desktopOrigins: readonly string[] = [],
+  options: { provisionAccounts?: boolean } = {},
 ) {
   const members = allowedEmails(env.ALLOWED_EMAILS);
   return betterAuth({
@@ -24,17 +24,36 @@ export function createAuth(
       provider: "pg",
       schema,
     }),
-    trustedOrigins: [env.CORS_ORIGIN, ...desktopOrigins],
-    emailAndPassword: { enabled: true, minPasswordLength: 12 },
-    databaseHooks: {
-      user: { create: { before: async (user) => {
-        if (!isTeamMember(user.email, members)) {
-          throw new APIError("FORBIDDEN", { message: "This workspace is private. Ask your team to add your email." });
-        }
-        return { data: { ...user, email: user.email.trim().toLowerCase() } };
-      } } },
+    trustedOrigins: [env.CORS_ORIGIN],
+    emailAndPassword: {
+      enabled: true,
+      minPasswordLength: 12,
+      disableSignUp: !options.provisionAccounts,
+      autoSignIn: false,
     },
-    rateLimit: { enabled: true, window: 60, max: 30, customRules: { "/sign-in/email": { window: 60, max: 5 }, "/sign-up/email": { window: 60, max: 5 } } },
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (user) => {
+            if (!isTeamMember(user.email, members)) {
+              throw new APIError("FORBIDDEN", {
+                message: "This workspace is private. Ask your team to add your email.",
+              });
+            }
+            return { data: { ...user, email: user.email.trim().toLowerCase() } };
+          },
+        },
+      },
+    },
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 30,
+      customRules: {
+        "/sign-in/email": { window: 60, max: 5 },
+        "/sign-up/email": { window: 60, max: 5 },
+      },
+    },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     advanced: {

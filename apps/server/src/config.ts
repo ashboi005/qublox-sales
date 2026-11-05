@@ -8,4 +8,6 @@ const schema = z.object({
   DAILY_CONTACT_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
 });
 export type SalesConfig = z.infer<typeof schema>;
-export function salesConfig(env: Record<string, unknown>): SalesConfig { return schema.parse(env); }
+export function salesConfig(env: Record<string, unknown>): SalesConfig {
+  return schema.parse(env);
+}

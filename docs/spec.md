@@ -1,14 +1,14 @@
 # Qublox sales v0.1
 
 ## Objective and accepted assumptions
-Build an internal, authenticated sales research workbench for Qublox. The user authorized implementation after reviewing the research and selected Next.js, Elysia, Bun, Better Auth, PostgreSQL, Drizzle, and Docker, hosted on their VPS. This is a single shared team workspace, not a public multi-tenant SaaS. Only allowlisted email addresses may create accounts or access data.
+Build an internal, authenticated sales research workbench for Qublox. The user authorized implementation after reviewing the research and selected Next.js, Elysia, Bun, Better Auth, PostgreSQL, Drizzle, and Docker, hosted on their VPS. This is a single shared team workspace, not a public multi-tenant SaaS. An administrator provisions allowlisted accounts privately using the offline CLI; public signup is disabled. The serving API checks membership on every request.
 
 The first usable slice is: create a campaign → add/import prospects → collect public website evidence → optionally score/draft with the team's Merge Gateway credits → edit and approve → compose/copy manually → record contact and follow-ups. Instagram is manual. The app never sends email as a side effect of approval. SMTP delivery, paid contact databases, social scraping, and automated screenshots are subsequent integrations, not prerequisites for this slice.
 
 ## Stack and structure
 - `apps/web`: Next App Router, React, CSS tokens, browser auth client, same-origin API proxy.
 - `apps/server`: Elysia REST endpoints and a separate durable research/drafting worker.
-- `packages/auth`: Better Auth password/session configuration and signup allowlist.
+- `packages/auth`: Better Auth password/session configuration, private provisioning, and session-revoking password resets.
 - `packages/db`: Drizzle PostgreSQL schemas and checked-in SQL migrations.
 - `packages/shared`: Zod boundary contracts and shared types.
 - `docs/research`: existing sourced build/buy analysis.
@@ -18,6 +18,7 @@ The first usable slice is: create a campaign → add/import prospects → collec
 - Install: `bun install --frozen-lockfile --ignore-scripts`
 - Local configuration: `bun run setup`
 - Database: `bun run db:start`, then `bun run db:migrate`
+- Team account: `bun run team:add --email dev@qublox.local --name 'Local user'`
 - Develop: `bun run dev` (web, API, worker)
 - Unit tests: `bun test apps/server/src packages/shared/src packages/auth/src`
 - Integration tests: `bun run test:integration` (isolated local test PostgreSQL)
@@ -55,7 +56,7 @@ Bun tests cover URL/SSRF boundaries, extraction, input normalization, draft vali
 - Never: commit secrets, claim messages were sent when they were only copied, invent scraped facts, silently replace PostgreSQL with browser storage, or expose public signup on the VPS.
 
 ## Success criteria
-A team member can sign up/sign in, create an offer, import/add a business, view persisted evidence, manually edit a draft or generate one when configured, approve the exact version, and record a manual contact/follow-up. Stale approvals and suppressed prospects are blocked by the server. Local production builds and meaningful tests pass. Docker configuration keeps PostgreSQL private and includes repeatable migrations and a documented backup/restore path.
+A privately provisioned team member can sign in, create an offer, import/add a business, view persisted evidence, manually edit a draft or generate one when configured, approve the exact version, and record a manual contact/follow-up. Stale approvals and suppressed prospects are blocked by the server. Local production builds and meaningful tests pass. Docker configuration keeps PostgreSQL private and includes repeatable migrations and a documented backup/restore path.
 
 ## Threat model
 Assets: sessions, prospect/contact data, LLM credits, VPS network access. Boundaries: browser/API, auth/database, imported files, fetched websites, DNS/redirects, model responses. Principal abuse cases: anonymous access, removed team members retaining access, cross-origin writes, private-network fetches, malicious imported URLs, prompt injection, concurrent stale approvals, duplicate contact logging, and unbounded LLM spend. Controls live in code and are tested; prompts are not a security boundary.

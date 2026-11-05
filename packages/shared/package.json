@@ -1,8 +1,17 @@
 {
   "name": "@qublox-sales/shared",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "check-types": "tsc --noEmit" },
-  "dependencies": { "zod": "catalog:" },
-  "devDependencies": { "@qublox-sales/config": "workspace:*", "typescript": "catalog:" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@qublox-sales/config": "workspace:*",
+    "typescript": "catalog:"
+  }
 }

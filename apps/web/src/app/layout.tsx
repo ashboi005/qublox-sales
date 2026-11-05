@@ -1,23 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-
 import "../index.css";
-import Header from "@/components/header";
-import Providers from "@/components/providers";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
-  title: "qublox-sales",
-  description: "qublox-sales",
+  title: { default: "Qublox · Sales workspace", template: "%s · Qublox" },
+  description: "Private prospect research and outreach review for Qublox.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
@@ -26,15 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <Providers>
-          <div className="grid grid-rows-[auto_1fr] h-svh">
-            <Header />
-            {children}
-          </div>
-        </Providers>
-      </body>
+    <html lang="en" className="overflow-x-clip">
+      <body className="overflow-x-clip">{children}</body>
     </html>
   );
 }

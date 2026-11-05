@@ -26,11 +26,14 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "bun run --filter '*' dev",
+    "format": "prettier --write 'apps/*/src/**/*.{ts,tsx,css}' 'apps/server/integration/*.ts' 'packages/*/src/**/*.ts' 'scripts/*.ts' '*.json' '*.yml' 'apps/*/package.json' 'packages/*/package.json'",
+    "dev": "bun run --parallel dev:web dev:server dev:worker",
     "build": "bun run --filter '*' build",
     "check-types": "bun run --filter '*' check-types",
     "dev:web": "bun run --filter web dev",
     "dev:server": "bun run --filter server dev",
+    "dev:worker": "bun run --filter server dev:worker",
+    "team:add": "bun run --filter server team:add",
     "db:push": "bun run --filter @qublox-sales/db db:push",
     "db:studio": "bun run --filter @qublox-sales/db db:studio",
     "db:generate": "bun run --filter @qublox-sales/db db:generate",
@@ -56,6 +59,7 @@
   "devDependencies": {
     "@qublox-sales/config": "workspace:*",
     "@types/bun": "catalog:",
+    "prettier": "3.6.2",
     "typescript": "catalog:",
     "varlock": "catalog:"
   },
