@@ -1,0 +1,22 @@
+# Optional database managed by this project. Existing VPS databases do not need this file.
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: qublox_sales
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD only for bundled PostgreSQL}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d qublox_sales"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  migrate:
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  postgres_data:

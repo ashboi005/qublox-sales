@@ -1,6 +1,6 @@
 # Qublox Sales
 
-A private sales research workspace for a small team. Built with your selected Better-T-Stack: Next.js, Elysia, Bun, Better Auth, PostgreSQL, Drizzle, and Docker. PostgreSQL and all application services can run on your VPS.
+A private sales research workspace for a small team. Built with your selected Better-T-Stack: Next.js, Elysia, Bun, Better Auth, PostgreSQL, Drizzle, and Docker. Application services can run on your VPS and connect to your existing self-hosted PostgreSQL through `DATABASE_URL`.
 
 ## What works
 
@@ -81,7 +81,7 @@ docker compose up -d --build
 docker compose exec server bun run team:add --email you@your-domain.com --name 'Your name'
 ```
 
-Compose starts PostgreSQL, runs checked-in migrations, then starts the API, worker, and web app. Only the web port is published, on `127.0.0.1:3001`. Put your existing HTTPS reverse proxy in front of it. PostgreSQL and the API have no published host ports. No VPS deployment has been performed by this build.
+Set `DATABASE_URL` to your existing PostgreSQL. Compose runs checked-in migrations, then starts the API, worker, and web app. It does not start a second database. An optional `compose.postgres.yml` override provides a bundled database if needed; see the runbook. Only the web port is published, on `127.0.0.1:3001`. Put your existing HTTPS reverse proxy in front of it. The API has no published host port; keep your existing database private. No VPS deployment has been performed by this build.
 
 ## Checks
 

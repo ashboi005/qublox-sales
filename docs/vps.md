@@ -14,7 +14,7 @@ flowchart LR
   Migrate[One-shot migrations] --> PG
 ```
 
-The web container proxies a fixed API upstream at runtime. Browser requests and auth cookies stay on your public HTTPS origin. The API and PostgreSQL do not publish host ports. Images run as the unprivileged `node` or `bun` user. The existing Docker network supplies service discovery; Redis is not needed.
+The web container proxies a fixed API upstream at runtime. Browser requests and auth cookies stay on your public HTTPS origin. The API publishes no host port. PostgreSQL is your existing service, configured with `DATABASE_URL`; keep its port private. Images run as the unprivileged `node` or `bun` user. The existing Docker network supplies service discovery; Redis is not needed.
 
 ## Prepare and start
 
@@ -22,7 +22,9 @@ Install Docker Engine with Compose v2 on your VPS. A small VPS can run the pilot
 
 1. Clone/copy the repository to a private directory. Do not copy development `.env.local` files or use the development database as production.
 2. Copy `.env.example` to `.env` and restrict it to the deployment user (`chmod 600 .env`).
-3. Generate separate values for `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET`, for example with `openssl rand -hex 24` and `openssl rand -hex 32`. Use URL-safe hex for the database password because it appears inside a connection URL. Replace all placeholders.
+3. Set `DATABASE_URL` to your existing PostgreSQL connection string and generate `BETTER_AUTH_SECRET` with `openssl rand -hex 32`. Use a dedicated application database/user with migration permissions, and URL-encode special characters in credentials. `POSTGRES_PASSWORD` is not required. Replace all placeholders.
+
+   The URL must resolve **from the containers**. `localhost` means the container itself. For another Dockerized database, attach these services to its private Docker network and use that database service hostname. For host PostgreSQL, configure a private reachable address and firewall/`pg_hba.conf` deliberately; do not expose port 5432 publicly. Preserve TLS verification when your database requires TLS.
 4. Set `APP_ORIGIN=https://sales.your-domain.com` with no trailing slash or path. Set `ALLOWED_EMAILS` to the exact team email addresses. Leave Gateway fields empty for manual drafting. Keep `DAILY_CONTACT_LIMIT=5` initially.
 5. Point that hostname to your VPS and configure HTTPS using your existing host reverse proxy. [deploy/Caddyfile.example](../deploy/Caddyfile.example) is a host-installed Caddy example. If your proxy is itself containerized, configure its network/address deliberately; its `127.0.0.1` is not the Docker host.
 6. Start and inspect:
@@ -70,31 +72,35 @@ Back up before a migration or upgrade. From a checkout with Bun installed:
 bun run db:backup
 ```
 
-This uses `pg_dump` in the PostgreSQL container and creates a private `.backups/production-<timestamp>.dump` (directory mode 700, file mode 600). Backups and environment files are ignored by Git and excluded from Docker builds. Copy the dump to separate private storage off the VPS. A volume on the same VPS is not a disaster-recovery copy. Store required secrets separately so the deployment can be recreated.
+This runs an ephemeral PostgreSQL 18 client against `DATABASE_URL` and creates a private `.backups/production-<timestamp>.dump` (directory mode 700, file mode 600). Backups and environment files are ignored by Git and excluded from Docker builds. Copy the dump to separate private storage off the VPS. A volume on the same VPS is not a disaster-recovery copy. Store required secrets separately so the deployment can be recreated.
 
 Without Bun on the VPS, the equivalent manual command is:
 
 ```bash
 umask 077
 mkdir -p .backups
-docker compose exec -T postgres pg_dump -U postgres -d qublox_sales -Fc > .backups/manual.dump
+docker compose run --rm --no-deps -T backup > .backups/manual.dump
 ```
 
 Verify a dump's table of contents without modifying a database:
 
 ```bash
-docker compose exec -T postgres pg_restore --list < .backups/manual.dump
+docker run --rm -i postgres:18 pg_restore --list < .backups/manual.dump
 ```
 
 For a restore drill, create a **new, empty database** and restore into it. Do not overwrite the running application database to test a backup:
 
+Use your existing database administration connection to create the disposable database and run `pg_restore --no-owner --exit-on-error` into it. Check tables and row counts. Keep credentials out of shell history. For actual recovery, stop API/worker, restore to a new database, validate it, then deliberately change `DATABASE_URL` in `.env` before restarting. Never use the running application database for a restore drill.
+
+## Optional bundled PostgreSQL
+
+If you later want this project to manage its own database, set `POSTGRES_PASSWORD` and set `DATABASE_URL=postgresql://postgres:YOUR_URL_ENCODED_PASSWORD@postgres:5432/qublox_sales`. Start with:
+
 ```bash
-docker compose exec -T postgres createdb -U postgres qublox_restore_check
-docker compose exec -T postgres pg_restore -U postgres -d qublox_restore_check --no-owner --exit-on-error < .backups/manual.dump
-docker compose exec -T postgres psql -U postgres -d qublox_restore_check -c 'select count(*) from prospect;'
+docker compose -f docker-compose.yml -f compose.postgres.yml up -d --build
 ```
 
-Inspect the restored data, then remove only the disposable restore-check database when finished. For an actual recovery, stop API/worker first, restore to a new database, validate it, and deliberately switch the connection configuration before restarting. The default Compose URL names `qublox_sales`; changing the recovery database requires updating that URL in Compose. Never run `docker compose down -v` against production; `-v` deletes its database volume.
+Keep both `-f` arguments for subsequent commands that manage that database. The override retains the existing `postgres_data` named volume and waits for database health before migration. Never run `down -v` against production. Switching to an existing database does not copy data from the old volume: back it up and restore deliberately if needed. The separate `compose.dev.yml` remains available for local development.
 
 ## Updates
 

@@ -17,14 +17,19 @@ try {
     [
       "docker",
       "compose",
-      ...(dev ? ["-f", "compose.dev.yml"] : []),
-      "exec",
-      "-T",
-      "postgres",
-      "pg_dump",
-      "--username=postgres",
-      "--dbname=qublox_sales",
-      "--format=custom",
+      ...(dev
+        ? [
+            "-f",
+            "compose.dev.yml",
+            "exec",
+            "-T",
+            "postgres",
+            "pg_dump",
+            "--username=postgres",
+            "--dbname=qublox_sales",
+            "--format=custom",
+          ]
+        : ["run", "--rm", "--no-deps", "-T", "backup"]),
     ],
     { cwd: root, stdout: fd, stderr: "inherit" },
   );

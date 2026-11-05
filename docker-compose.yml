@@ -3,7 +3,7 @@ name: qublox-sales
 x-server-env: &server-env
   NODE_ENV: production
   PORT: 3000
-  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/qublox_sales
+  DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env to your PostgreSQL connection URL}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
   BETTER_AUTH_URL: ${APP_ORIGIN:?Set APP_ORIGIN in .env}
   CORS_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN in .env}
@@ -14,21 +14,6 @@ x-server-env: &server-env
   DAILY_CONTACT_LIMIT: ${DAILY_CONTACT_LIMIT:-5}
 
 services:
-  postgres:
-    image: postgres:18
-    environment:
-      POSTGRES_DB: qublox_sales
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-    volumes:
-      - postgres_data:/var/lib/postgresql
-    healthcheck:
-      test: [CMD-SHELL, "pg_isready -U postgres -d qublox_sales"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
   migrate:
     image: qublox-sales-server:local
     build:
@@ -37,9 +22,6 @@ services:
     working_dir: /app
     command: [bun, run, db:migrate]
     environment: *server-env
-    depends_on:
-      postgres:
-        condition: service_healthy
     restart: "no"
 
   server:
@@ -102,5 +84,10 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-volumes:
-  postgres_data:
+  backup:
+    profiles: [ops]
+    image: postgres:18
+    environment:
+      PGDATABASE: ${DATABASE_URL:?Set DATABASE_URL in .env}
+    entrypoint: [pg_dump]
+    command: [--format=custom, --no-owner]
