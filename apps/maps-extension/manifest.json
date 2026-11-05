@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Qublox Maps Collector",
+  "version": "1.1.0",
+  "minimum_chrome_version": "102",
+  "description": "Collect public business listings, review hotel details, and send a batch to your Qublox workspace.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "https://www.google.com/maps/*",
+    "https://www.google.co.in/maps/*",
+    "https://maps.google.com/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_icon": { "128": "icon.png" } },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.google.com/maps/*",
+        "https://www.google.co.in/maps/*",
+        "https://maps.google.com/*"
+      ],
+      "js": ["core.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": { "128": "icon.png" }
+}

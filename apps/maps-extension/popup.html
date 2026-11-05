@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Qublox Maps Collector</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icon.png" width="28" height="28" alt="" />
+      <h1>Qublox Maps Collector</h1>
+    </header>
+    <p id="status" role="status">Loading saved collection…</p>
+    <p id="count">0 places saved</p>
+    <p id="warning" role="alert" hidden></p>
+    <label
+      >Collection limit<select id="limit">
+        <option value="20">20 places</option>
+        <option value="50" selected>50 places</option>
+        <option value="100">100 places</option>
+      </select></label
+    >
+    <div class="actions">
+      <button id="start" class="primary">Start collection</button
+      ><button id="stop" disabled>Stop</button>
+    </div>
+    <p class="hint">
+      Keep the Maps tab open. Closing this popup is fine. Limited results and unmatched details
+      remain explicit.
+    </p>
+    <section>
+      <h2>Import into Qublox</h2>
+      <label
+        >Workspace URL<input
+          id="workspace"
+          type="url"
+          value="http://localhost:3001"
+          placeholder="https://sales.your-domain.com" /></label
+      ><button id="transfer" class="primary" disabled>Send to Qublox</button>
+      <p class="hint">
+        Opens a preview in your signed-in workspace. You choose the offer and confirm the import. No
+        account credentials are stored here.
+      </p>
+    </section>
+    <section>
+      <h2>Keep a copy</h2>
+      <div class="actions">
+        <button id="json" disabled>Export JSON</button><button id="csv" disabled>Export CSV</button>
+      </div>
+      <button id="reset" class="danger" disabled>Clear saved collection</button>
+      <p class="hint">
+        Missing website? It stays in the export; add its website before importing into the current
+        pipeline.
+      </p>
+    </section>
+    <script src="core.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -59,3 +59,4 @@ temp
 .backups/
 artifacts/
 .hallmark/
+apps/web/public/qublox-maps-extension.zip
