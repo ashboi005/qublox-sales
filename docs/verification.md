@@ -5,8 +5,8 @@ Verified locally on 5 November 2026 with Bun 1.3.10, the committed lockfile, and
 ## Automated checks
 
 - `bun run check-types`: all six workspaces pass.
-- `bun run test`: 18 tests pass. Covers normalization, malformed input, invented/missing evidence, score-zero behavior, team membership, public-address boundaries, mixed DNS answers, extraction, robots matching (including an adversarial wildcard case), and Gateway output/cost validation.
-- `bun run test:integration`: 16 tests pass against isolated `qublox_sales_test`. Covers closed public signup even for a known team email, offline provisioning, session-revoking password resets, anonymous/removed-member denial, foreign-origin writes, persisted lifecycle, partial imports, trailing-dot dedupe/suppression, concurrent daily caps, campaign approval invalidation, job claim/lease recovery, stale research cancellation, suppression processing-state cleanup, and ambiguous Gateway cost reservations.
+- `bun run test`: 40 tests pass. Covers normalization, malformed input, invented/missing evidence, score-zero behavior, team membership, public-address boundaries, mixed DNS answers, extraction, robots matching (including an adversarial wildcard case), Gateway output/cost validation, and the Maps extension cases below.
+- `bun run test:integration`: 17 tests pass against isolated `qublox_sales_test`. Covers closed public signup even for a known team email, offline provisioning, session-revoking password resets, anonymous/removed-member denial, foreign-origin writes, persisted lifecycle, partial imports, list-only capture warnings, trailing-dot dedupe/suppression, concurrent daily caps, campaign approval invalidation, job claim/lease recovery, stale research cancellation, suppression processing-state cleanup, and ambiguous Gateway cost reservations.
 - `bun run build`: Elysia API/worker bundles and Next.js standalone production build pass. Resolved Next.js version is 16.4.5.
 - `bun audit --json`: `{}`; no advisories reported for the final locked graph. The unused scaffold `shadcn` CLI was removed, eliminating its two transitive findings without forcing unrelated major dependency upgrades.
 - `git diff --check`: clean.
@@ -33,6 +33,20 @@ Static Hallmark app-scope check: **0 Floor failures, 0 Reflex findings**, with t
 ## Security review
 
 A separate-model code review found four substantive issues, all fixed with regressions: allowlist impersonation through signup, trailing DNS dots bypassing business identity, malformed Instagram refinements throwing during import, and backtracking regex in untrusted robots rules. The reviewer confirmed the fixes and independently compared 92,456 bounded robots-matching cases against a reference implementation. Public signup remains disabled; provisioning only runs in an offline process with server access.
+
+## Integrated Maps collector
+
+The maintained MV3 extension is in `apps/maps-extension`; the original sibling project is unchanged. A fixed file allowlist packages its eight runtime files into the app's downloadable ZIP during web development/production builds. Tests inspect the archive and exclude source tests, dependencies, and environment files. `fflate` was updated to patched 0.8.3 after its earlier version's ZIP64 advisory; the final dependency audit is clean.
+
+The final `docker compose build web` also passes with the extension archive included in the runtime image. No deployment was performed.
+
+Twenty-two extension/import unit tests exercise the actual collector against sanitized captured hotel/ordinary-business DOM and simulated Chrome APIs. Reproduced failures include Sponsored becoming a hotel name, nightly prices becoming phone numbers, booking-provider links becoming websites, lost CID identity, and same-count virtualized lists skipping replacement cards. Tests also cover same-name branches, already-open profiles, stale contact nodes during partial navigation, persistence across worker restarts, concurrent saves, sender rejection, scoped transfer, bridge nonce/origin checks, and CSV formula handling.
+
+A separate-model review found stale contact nodes could survive an early title change, and navigation could race origin inspection before bridge injection. Both were reproduced and fixed with regression tests. The already-open-target exception is constrained to the same place identifier and expected business name.
+
+Browser QA used the production web build and API on temporary loopback ports 3303/3310 against only `qublox_sales_test`, without a worker or LLM key. The authenticated preview displayed valid and missing-website records, imported one valid prospect, reported the other row, and refreshed the pipeline. A server integration check confirms list-only warnings are retained and imported contacts remain unverified. At 375px the populated preview and pipeline fit the document; table scrolling stays local. The viewport was reset and QA tabs/servers were closed. `artifacts/maps-import.png` is an ignored screenshot of disposable test data.
+
+The in-app browser cannot install unpacked Chrome extensions. Native Chrome/Brave installation, optional permission prompts, and the live extension-to-page handshake still require a smoke check in the user's browser. The protocol has simulated-API coverage, and the receiving preview/import has actual browser coverage; neither establishes universal compatibility with changing Maps layouts. No access restrictions were bypassed.
 
 ## Containers and recovery
 

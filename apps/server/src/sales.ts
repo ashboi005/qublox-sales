@@ -516,6 +516,10 @@ export function createSalesService(db: Database, config: SalesConfig) {
           campaignId,
           sourceUrl: row.sourceUrl || row.url || "",
           sourceCapturedAt: row.sourceCapturedAt || row.scrapedAt || null,
+          notes:
+            row.captureStatus === "list_only"
+              ? `Maps capture: list information only; detail panel was not matched. Review contact information.\n${typeof row.notes === "string" ? row.notes : ""}`
+              : row.notes,
         });
         if (!parsed.success) {
           invalid.push({ row: i + 1, reason: parsed.error.issues[0]?.message || "Invalid record" });

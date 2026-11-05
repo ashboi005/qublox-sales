@@ -6,7 +6,7 @@ import { api, message } from "@/lib/api";
 import { Notice } from "./workspace";
 
 export const campaignsSchema = z.array(campaignSchema);
-const importResult = z.object({
+export const importResult = z.object({
   added: z.number(),
   duplicates: z.number(),
   invalid: z.array(z.object({ row: z.number(), reason: z.string() })),
@@ -31,6 +31,26 @@ export function ProspectEntry({
       aria-label={mode === "add" ? "Add prospect" : "Import prospects"}
     >
       <h2>{mode === "add" ? "A new conversation starts here." : "Bring in your Maps research."}</h2>
+      {mode === "import" && (
+        <details className="source">
+          <summary>Use the Qublox Maps extension</summary>
+          <p>
+            Download and extract the extension, open <code>chrome://extensions</code> in Chrome or
+            Brave, enable Developer mode, and choose Load unpacked. Select the extracted folder
+            containing manifest.json.
+          </p>
+          <p>
+            <a className="button" href="/qublox-maps-extension.zip" download>
+              Download Maps extension
+            </a>
+          </p>
+          <p>
+            Collect businesses on Maps, enter this workspace URL in the extension, and select Send
+            to Qublox. Sign in here if needed, review the incoming batch, choose an offer, and
+            confirm the import. JSON export remains available.
+          </p>
+        </details>
+      )}
       {error && <Notice error>{error}</Notice>}
       {result && (
         <Notice>

@@ -6,7 +6,7 @@ A private sales research workspace for a small team. Built with your selected Be
 
 - Private team login; accounts are provisioned from the server, with public signup disabled.
 - Offers that define the audience, service, real proof, and call to action.
-- Add business websites or import JSON from the existing Google Maps extension. Domains deduplicate across offers; source links and capture times are retained.
+- Collect Maps businesses with the integrated Chrome/Brave extension, then send an editable batch to the app for confirmation. JSON/CSV export is also available. Domains deduplicate across offers; source links and capture times are retained.
 - Queue bounded public website research. Collect visible contact details, social links, page excerpts, and platform clues with source URLs and timestamps.
 - Optional Merge Gateway scoring and drafting, using your own credits. Drafts cite stored evidence; score zero skips the lead. Manual drafting works without an API key.
 - Split-screen evidence and draft review. Edit contacts, switch email/Instagram, save, approve, and regenerate. Edits and offer changes revoke approval; stale writes are rejected.
@@ -45,6 +45,14 @@ For actual team accounts, put their exact email addresses in `ALLOWED_EMAILS` in
 4. Choose the offer and recipient/channel. Generate a draft when Gateway is configured, or write one yourself, selecting supporting sources and a signal score.
 5. Save, review, and approve the exact saved version. Send from your own mailbox or Instagram. Select **Mark as sent** only after sending.
 6. Use **Follow-ups** for reminders. Mark replies or add opt-outs to the do-not-contact list.
+
+## Maps extension
+
+The maintained extension is in [apps/maps-extension](apps/maps-extension/README.md). Load that folder unpacked in Chrome or Brave, then refresh Maps. The sibling scraper project is unchanged; an installation pointing to that older folder will keep running the old code. You can also download the packaged extension under **Import JSON → Use the Qublox Maps extension**. Development and production builds generate that ZIP automatically.
+
+Collect a visible Maps search or a single profile, enter your workspace origin in the popup, and choose **Send to Qublox**. Sign in, review the batch, and confirm. Saved collections survive popup closure and reloads. Hotel layouts, sponsored headings, booking prices/links, same-name branches, and virtualized results have dedicated regression coverage. Unmatched detail panels produce labeled list-only records; places without websites remain exportable and are reported separately during import.
+
+Captured-DOM and simulated Chrome API tests pass; the import preview was checked in a real browser. Native unpacked-extension installation and Chrome permission prompts still need a smoke check in your profile.
 
 ## Merge Gateway
 
@@ -93,6 +101,6 @@ Integration tests create and truncate only the isolated `qublox_sales_test` data
 
 Research reads public HTML without executing JavaScript. It does not log into social accounts, scrape Instagram, render website screenshots, measure a brand's visual aesthetic, read arbitrary client bundles, or claim a product is a bestseller. Blocked and JavaScript-dependent sites need manual source observations. Platform detection is an indication from public assets, not a complete backend inspection.
 
-Contact discovery is not mailbox verification. Scraped and imported emails remain **unverified**; no enrichment database or verifier is connected. Email/DM delivery is manual, and no inbox-placement claim is made. Niche sourcing currently uses your existing Maps extension and manual additions; there is no paid search provider or automated inbox rotation.
+Contact discovery is not mailbox verification. Scraped and imported emails remain **unverified**; no enrichment database or verifier is connected. Email/DM delivery is manual, and no inbox-placement claim is made. Niche sourcing uses the integrated Maps extension and manual additions; there is no paid search provider or automated inbox rotation.
 
 This is one shared team workspace. Team members can access all prospects and offers. A multi-client permissions system, automatic sending, reply synchronization, and deliverability monitoring would need another implementation slice.

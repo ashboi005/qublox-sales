@@ -5,6 +5,7 @@ import { Plus, Upload, ArrowRight, Search } from "lucide-react";
 import { listSchema, overviewSchema, statuses } from "@qublox-sales/shared";
 import { Workspace, Loading, Empty, Notice, Status } from "@/components/workspace";
 import { campaignsSchema, ProspectEntry } from "@/components/prospect-entry";
+import { MapsImport } from "@/components/maps-import";
 import { useResource } from "@/lib/use-resource";
 import { date } from "@/lib/api";
 
@@ -89,6 +90,7 @@ function Prospects() {
           {offers.error} <button onClick={offers.reload}>Retry offers</button>
         </Notice>
       )}
+      <MapsImport campaigns={offers.data || []} onImported={reload} />
       <div className="toolbar">
         <form
           className="filters"

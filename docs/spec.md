@@ -8,6 +8,7 @@ The first usable slice is: create a campaign → add/import prospects → collec
 ## Stack and structure
 - `apps/web`: Next App Router, React, CSS tokens, browser auth client, same-origin API proxy.
 - `apps/server`: Elysia REST endpoints and a separate durable research/drafting worker.
+- `apps/maps-extension`: unpacked MV3 Chrome/Brave collector, local saved collections, JSON/CSV export, and scoped workspace transfer.
 - `packages/auth`: Better Auth password/session configuration, private provisioning, and session-revoking password resets.
 - `packages/db`: Drizzle PostgreSQL schemas and checked-in SQL migrations.
 - `packages/shared`: Zod boundary contracts and shared types.
@@ -20,7 +21,8 @@ The first usable slice is: create a campaign → add/import prospects → collec
 - Database: `bun run db:start`, then `bun run db:migrate`
 - Team account: `bun run team:add --email dev@qublox.local --name 'Local user'`
 - Develop: `bun run dev` (web, API, worker)
-- Unit tests: `bun test apps/server/src packages/shared/src packages/auth/src`
+- Unit tests: `bun run test` (includes captured-DOM and simulated Chrome API extension regressions)
+- Extension ZIP: `bun run extension:build` (also runs during web dev/build)
 - Integration tests: `bun run test:integration` (isolated local test PostgreSQL)
 - Type check: `bun run check-types`
 - Build: `bun run build`
@@ -30,6 +32,7 @@ The first usable slice is: create a campaign → add/import prospects → collec
 - All workspace APIs authenticate sessions and check membership. Unsafe methods require the configured application Origin. Auth endpoints retain Better Auth's own checks and throttling.
 - Campaigns define buyer, offer, proof, and next step. Prospect domains deduplicate across campaigns to avoid duplicate outreach.
 - Maps JSON import preserves provenance; it does not claim verification of imported email addresses or unrestricted rights to source data.
+- The extension collects only visible Maps DOM, up to 100 places/10 minutes per run. Match the clicked place before accepting detail contacts; otherwise retain a marked list-only record. Collections persist locally across popup closure/reloads. Workspace permission is requested for the selected origin; transfer opens an authenticated preview, never an automatic import. The bridge rechecks the destination origin at injection time, and nonce/source/origin checks bound the page exchange. The app validates the batch and the normal authenticated import endpoint validates each row. Missing websites remain exportable; list-only warnings survive import as notes.
 - Research is HTTP-first, bounded, and public-address-only. Check DNS and pin vetted addresses on every request; validate redirects. Never fetch arbitrary local/VPS services.
 - Evidence contains source URL, retrieved time, type and excerpt. Unknown, blocked, and failed research remain explicit.
 - LLM output is untrusted JSON: score 0–3, evidence references, rationale, subject/body. Invalid references fail. Score zero produces no suggested message. The integration is optional, server-side, token-limited, and budget-limited.

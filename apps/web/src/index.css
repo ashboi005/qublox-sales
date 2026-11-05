@@ -306,6 +306,7 @@ legend {
   min-width: 145px;
 }
 .table-wrap {
+  position: relative;
   width: 100%;
   overflow-x: auto;
 }

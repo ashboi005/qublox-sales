@@ -266,6 +266,24 @@ test("an invalid Instagram row does not abort the rest of an import", async () =
   expect(result.data).toMatchObject({ added: 2, duplicates: 0, invalid: [{ row: 2 }] });
 });
 
+test("extension list-only captures remain marked for manual review after import", async () => {
+  const result = await request<{ added: number }>("/api/imports", "POST", {
+    records: [
+      {
+        name: "Partial Maps capture",
+        website: "partial-capture.example",
+        url: "https://www.google.com/maps?cid=123",
+        captureStatus: "list_only",
+        scrapedAt: "2026-11-05T10:00:00.000Z",
+      },
+    ],
+  });
+  expect(result.data.added).toBe(1);
+  const list = await request<{ data: Prospect[] }>("/api/prospects?q=partial-capture.example");
+  expect(list.data.data[0]?.notes).toContain("detail panel was not matched");
+  expect(list.data.data[0]?.verificationStatus).toBe("unverified");
+});
+
 async function approvedFixture(service: ReturnType<typeof createSalesService>, domain: string) {
   const campaign = await service.createCampaign({
     name: "Cap fixture",
