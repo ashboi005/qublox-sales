@@ -1,0 +1,3 @@
+{
+  "extends": "@qublox-sales/config/tsconfig.base.json"
+}

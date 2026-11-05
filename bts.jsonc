@@ -1,0 +1,31 @@
+// Better-T-Stack project metadata
+//
+// Keep this file to use the `add` command.
+// Add addons: bunx create-better-t-stack@latest add
+//
+// Docs: https://better-t-stack.dev/docs
+// Stack Builder: https://better-t-stack.dev/new
+
+{
+  "$schema": "https://r2.better-t-stack.dev/schema.json",
+  "version": "3.49.0",
+  "createdAt": "2026-11-05T11:00:56.819Z",
+  "reproducibleCommand": "bun create better-t-stack@latest . --frontend next --backend elysia --runtime bun --database postgres --orm drizzle --api none --auth better-auth --payments none --addons none --examples none --db-setup docker --manual-db --web-deploy docker --server-deploy docker --git --package-manager bun --no-install",
+  "dbSetupOptions": {
+    "mode": "manual",
+  },
+  "database": "postgres",
+  "orm": "drizzle",
+  "backend": "elysia",
+  "runtime": "bun",
+  "frontend": ["next"],
+  "addons": [],
+  "examples": [],
+  "auth": "better-auth",
+  "payments": "none",
+  "packageManager": "bun",
+  "dbSetup": "docker",
+  "api": "none",
+  "webDeploy": "docker",
+  "serverDeploy": "docker",
+}
