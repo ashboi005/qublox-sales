@@ -1,3 +1,5 @@
+import { salesConfig } from "../src/config";
+import { LlmDeferred } from "../src/llm-provider";
 import { beforeAll, afterAll, describe, expect, test } from "bun:test";
 import { createDb } from "@qublox-sales/db";
 import { createAuth } from "@qublox-sales/auth";
@@ -6,8 +8,8 @@ import { createApp } from "../src/app";
 import type { Campaign, Prospect } from "@qublox-sales/shared";
 import { createSalesService } from "../src/sales";
 import { claimJob, processJob } from "../src/jobs";
-import { generateDraft } from "../src/gateway";
-import { jobs, llmUsage, prospects } from "@qublox-sales/db/schema/sales";
+import { generateDraft } from "../src/llm";
+import { jobs, llmUsage, llmProviderState, prospects } from "@qublox-sales/db/schema/sales";
 import { eq } from "drizzle-orm";
 import { prospectInput } from "@qublox-sales/shared";
 
@@ -15,13 +17,11 @@ if (!process.env.DATABASE_URL?.endsWith("/qublox_sales_test"))
   throw new Error("Integration tests require the isolated qublox_sales_test database.");
 const db = createDb({ DATABASE_URL: process.env.DATABASE_URL });
 const origin = "http://localhost:3001";
-const config = {
+const config = salesConfig({
   ALLOWED_EMAILS: "test@qublox.local",
-  MERGE_GATEWAY_API_KEY: "",
-  MERGE_MODEL: "",
   LLM_MONTHLY_BUDGET_USD: 5,
   DAILY_CONTACT_LIMIT: 1,
-};
+});
 const authConfig = {
   BETTER_AUTH_URL: origin,
   BETTER_AUTH_SECRET: "integration-test-only-secret-at-least-thirty-two-characters",
@@ -54,7 +54,7 @@ async function request<T = Prospect>(
 
 beforeAll(async () => {
   await db.$client.query(
-    'TRUNCATE "user", campaign, prospect, activity, suppression, job, llm_usage CASCADE',
+    'TRUNCATE "user", campaign, prospect, activity, suppression, job, llm_usage, llm_provider_state CASCADE',
   );
   await provisionTeamAccount(authConfig, db, {
     name: "Qublox test",
@@ -497,8 +497,9 @@ test("editing a prospect cancels an in-flight research result", async () => {
   expect(result.researchStatus).toBe("idle");
 });
 
-test("ambiguous Gateway cost retains a reservation and blocks overspending", async () => {
+test("ambiguous AI cost retains a reservation and blocks overspending", async () => {
   await db.delete(llmUsage);
+  await db.delete(llmProviderState);
   const p = (await db.select().from(prospects).where(eq(prospects.domain, "worker.example")))[0]!;
   const campaign = {
     name: "Website",
@@ -528,17 +529,185 @@ test("ambiguous Gateway cost retains a reservation and blocks overspending", asy
     );
   const limited = {
     ...config,
-    MERGE_GATEWAY_API_KEY: "test-key-not-real",
-    MERGE_MODEL: "test/model",
-    LLM_MONTHLY_BUDGET_USD: 0.05,
+    GROQ_API_KEY: "test-key-not-real",
+    LLM_MONTHLY_BUDGET_USD: 0.001,
   };
   expect(
     (await generateDraft(db, limited, crypto.randomUUID(), p, campaign, fakeFetch)).score,
   ).toBe(0);
+  await db.update(llmUsage).set({ createdAt: new Date(Date.now() - 120000) });
   await expect(
     generateDraft(db, limited, crypto.randomUUID(), p, campaign, fakeFetch),
   ).rejects.toThrow("allowance");
   const usage = await db.select().from(llmUsage);
   expect(usage).toHaveLength(1);
   expect(usage[0]!.state).toBe("reserved");
+});
+
+const aiCampaign = {
+  name: "Site",
+  audience: "Shops",
+  offer: "Website",
+  proof: "",
+  callToAction: "See an example?",
+};
+const aiProspect = { name: "Shop", channel: "email", evidence: [] };
+const aiResponse = () =>
+  new Response(
+    JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              score: 0,
+              rationale: "No signal",
+              evidenceIds: [],
+              subject: "",
+              body: "",
+            }),
+          },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 1000, completion_tokens: 200 },
+    }),
+  );
+test("concurrent AI workers reserve one paced slot without oversending", async () => {
+  await db.delete(llmUsage);
+  await db.delete(llmProviderState);
+  let calls = 0;
+  const c = salesConfig({ ...config, GROQ_API_KEY: "fake-key" });
+  const results = await Promise.allSettled(
+    [1, 2].map(() =>
+      generateDraft(db, c, crypto.randomUUID(), aiProspect, aiCampaign, async () => {
+        calls++;
+        return aiResponse();
+      }),
+    ),
+  );
+  expect(calls).toBe(1);
+  expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+  expect(results.find((r) => r.status === "rejected")).toMatchObject({
+    reason: expect.any(LlmDeferred),
+  });
+  expect(await db.select().from(llmUsage)).toHaveLength(1);
+});
+test("provider 429 persists Retry-After and makes no request during cooldown", async () => {
+  await db.delete(llmUsage);
+  await db.delete(llmProviderState);
+  // Exercise the upsert as well as insertion, including non-UTC client timezones.
+  await db
+    .insert(llmProviderState)
+    .values({ provider: "groq", blockedUntil: new Date(Date.now() - 60000) });
+  const c = salesConfig({ ...config, GROQ_API_KEY: "fake-key" });
+  let calls = 0;
+  const fetcher = async () => {
+    calls++;
+    return new Response("not persisted", { status: 429, headers: { "Retry-After": "3600" } });
+  };
+  await expect(
+    generateDraft(db, c, crypto.randomUUID(), aiProspect, aiCampaign, fetcher),
+  ).rejects.toBeInstanceOf(LlmDeferred);
+  await expect(
+    generateDraft(db, c, crypto.randomUUID(), aiProspect, aiCampaign, fetcher),
+  ).rejects.toBeInstanceOf(LlmDeferred);
+  expect(calls).toBe(1);
+  const [state] = await db.select().from(llmProviderState);
+  expect(state!.blockedUntil.getTime()).toBeGreaterThan(Date.now() + 3590000);
+  expect(state!.blockedUntil.getTime()).toBeLessThan(Date.now() + 3601000);
+  const [attempt] = await db.select().from(llmUsage);
+  expect(attempt).toMatchObject({ state: "rejected", costMicros: 0 });
+});
+test("Gemini uses its own endpoint/key and meters tokens without a Merge fee", async () => {
+  await db.delete(llmUsage);
+  await db.delete(llmProviderState);
+  const c = salesConfig({ ...config, LLM_PROVIDER: "gemini", GEMINI_API_KEY: "fake-gemini-key" });
+  const draft = await generateDraft(
+    db,
+    c,
+    crypto.randomUUID(),
+    aiProspect,
+    aiCampaign,
+    async (url, init) => {
+      expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+      expect(init.headers).toMatchObject({ Authorization: "Bearer fake-gemini-key" });
+      return aiResponse();
+    },
+  );
+  expect(draft.score).toBe(0);
+  expect((await db.select().from(llmUsage))[0]).toMatchObject({
+    provider: "gemini",
+    state: "estimated",
+    costMicros: 180,
+  });
+});
+test("local quota deferral requeues a draft without consuming its attempt count", async () => {
+  const sales = createSalesService(db, config);
+  const offer = await sales.createCampaign(aiCampaign);
+  const lead = await sales.createProspect(
+    prospectInput.parse({ name: "Paced draft", website: "paced.example", campaignId: offer.id }),
+    "Test",
+  );
+  const [job] = await db
+    .insert(jobs)
+    .values({
+      id: crypto.randomUUID(),
+      prospectId: lead.id,
+      kind: "draft",
+      inputVersion: lead.version,
+      status: "running",
+      attempts: 1,
+      lockedAt: new Date(),
+      leaseId: crypto.randomUUID(),
+    })
+    .returning();
+  const until = new Date(Date.now() + 3600000);
+  await processJob(db, config, job!, {
+    draft: async () => {
+      throw new LlmDeferred(until);
+    },
+  });
+  const [saved] = await db.select().from(jobs).where(eq(jobs.id, job!.id));
+  expect(saved).toMatchObject({ status: "queued", attempts: 0 });
+  expect(saved!.availableAt.getTime()).toBe(until.getTime());
+  expect((await sales.detail(lead.id)).prospect.draftStatus).toBe("queued");
+  expect(
+    (await request(`/api/prospects/${lead.id}/jobs/cancel`, "POST", { version: lead.version + 1 }))
+      .response.status,
+  ).toBe(409);
+  const cancelled = await request(`/api/prospects/${lead.id}/jobs/cancel`, "POST", {
+    version: lead.version,
+  });
+  expect(cancelled.response.status).toBe(200);
+  expect(cancelled.data.draftStatus).toBe("idle");
+  expect((await db.select().from(jobs).where(eq(jobs.id, job!.id)))[0]!.status).toBe("cancelled");
+});
+
+test("quota admission uses the database time after acquiring its lock", async () => {
+  await db.delete(llmUsage);
+  await db.delete(llmProviderState);
+  const holder = await db.$client.connect();
+  let pending: Promise<unknown> | undefined;
+  try {
+    await holder.query("BEGIN");
+    await holder.query("select pg_advisory_xact_lock(713220)");
+    pending = generateDraft(
+      db,
+      salesConfig({ ...config, GROQ_API_KEY: "fake-key" }),
+      crypto.randomUUID(),
+      aiProspect,
+      aiCampaign,
+      async () => aiResponse(),
+    );
+    await Bun.sleep(50);
+    const released = (await holder.query("select clock_timestamp() as now")).rows[0].now as Date;
+    await holder.query("COMMIT");
+    await pending;
+    const [row] = await db.select().from(llmUsage);
+    expect(row!.createdAt.getTime()).toBeGreaterThanOrEqual(released.getTime());
+  } finally {
+    await holder.query("ROLLBACK");
+    holder.release();
+    await pending?.catch(() => {});
+  }
 });

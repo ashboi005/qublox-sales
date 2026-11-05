@@ -153,6 +153,10 @@ export function createApp(options: {
           const input = revisionSchema.extend({ kind: z.enum(["research", "draft"]) }).parse(body);
           return sales.enqueue(id(params.id), input.version, input.kind, actor);
         })
+        .post("/prospects/:id/jobs/cancel", ({ params, body, actor }) => {
+          const input = revisionSchema.parse(body);
+          return sales.cancelQueued(id(params.id), input.version, actor);
+        })
         .post("/imports", ({ body, actor }) => {
           const input = z
             .object({

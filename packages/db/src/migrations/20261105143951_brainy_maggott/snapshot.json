@@ -1,0 +1,154 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "da9f0866-d595-46e4-87dc-343b07dcf34d",
+  "prevIds": [
+    "86aafb96-a419-4226-90ac-3e43dcecef81"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "llm_provider_state"
+      ],
+      "writes": [
+        "s|tbl|public.llm_provider_state",
+        "n|tbl|public.llm_provider_state",
+        "e|tbl|public.llm_provider_state",
+        "n|rel|public.llm_provider_state",
+        "n|type|public.llm_provider_state",
+        "n|rel|public.llm_provider_state_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "llm_usage",
+        "provider"
+      ],
+      "writes": [
+        "s|col|public.llm_usage.provider",
+        "n|col|public.llm_usage.provider",
+        "e|col|public.llm_usage.provider"
+      ],
+      "reads": [
+        "n|tbl|public.llm_usage",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "llm_usage",
+        "quota_tokens"
+      ],
+      "writes": [
+        "s|col|public.llm_usage.quota_tokens",
+        "n|col|public.llm_usage.quota_tokens",
+        "e|col|public.llm_usage.quota_tokens"
+      ],
+      "reads": [
+        "n|tbl|public.llm_usage",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "llm_provider_state",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "llm_provider_state",
+        "name": "provider",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "llm_provider_state",
+        "name": "blocked_until",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "llm_usage",
+        "name": "provider",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'legacy'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "llm_usage",
+        "name": "quota_tokens",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "llm_provider_state",
+        "name": "llm_provider_state_pkey",
+        "columns": [
+          "provider"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

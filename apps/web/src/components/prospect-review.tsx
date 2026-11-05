@@ -137,7 +137,7 @@ export function ProspectReview({ id }: { id: string }) {
               dirty ||
               working ||
               !editable ||
-              !settings.data?.gatewayConfigured ||
+              !settings.data?.aiConfigured ||
               !p.evidence.length ||
               !p.campaignId
             }
@@ -202,10 +202,25 @@ export function ProspectReview({ id }: { id: string }) {
             {p.researchStatus === "running" || p.draftStatus === "running" ? "running" : "queued"}.
             Editing is paused until it finishes.
           </span>
+          {(p.researchStatus === "queued" || p.draftStatus === "queued") && (
+            <button
+              disabled={busy}
+              onClick={() =>
+                write(
+                  "/jobs/cancel",
+                  { version: p.version },
+                  "POST",
+                  "Queued work cancelled. You can edit manually.",
+                )
+              }
+            >
+              Cancel queued work
+            </button>
+          )}
         </Notice>
       )}
       {p.lastError && <Notice error>{p.lastError}</Notice>}
-      {settings.data && !settings.data.gatewayConfigured && editable && (
+      {settings.data && !settings.data.aiConfigured && editable && (
         <Notice>
           AI drafting is not connected yet. You can research websites and write evidence-backed
           drafts manually. <Link href="/settings">View setup status</Link>.

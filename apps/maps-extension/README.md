@@ -14,7 +14,7 @@ The application creates a downloadable ZIP during `bun run dev` and `bun run bui
 2. Open the extension, choose a total collection limit (20/50/100), and start. Keep the Maps tab open; the popup can close. Stop waits for the current check to exit and keeps collected records.
 3. Records are saved in extension-local storage. They survive popup closure and page reloads. Only one Maps tab can collect at a time. Starting again resumes the saved collection; increase its total limit or clear it to start a new one.
 4. Enter your Qublox workspace origin, e.g. `http://localhost:3001` or `https://sales.your-domain.com`. Select **Send to Qublox** and grant access to that destination when Chrome asks.
-5. The extension opens Qublox. Sign in if necessary, review the incoming collection, choose an offer, and select **Confirm import**. No prospect is written automatically, and the extension never receives your login cookie, password, or Gateway key.
+5. The extension opens Qublox. Sign in if necessary, review the incoming collection, choose an offer, and select **Confirm import**. No prospect is written automatically, and the extension never receives your login cookie, password, or AI provider key.
 6. Export JSON or Excel-compatible UTF-8 CSV at any time when collection is stopped. Clearing the extension collection does not delete imported prospects.
 
 The current pipeline requires a website. Places without one stay in the collection/export and appear as missing in the import preview. Add their actual website in the preview JSON, or import the other valid rows; invalid rows are reported separately. Collected emails/phones are not verified.

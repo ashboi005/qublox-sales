@@ -1,4 +1,4 @@
-sales.your-domain.com {
+sales.qubloxhq.com {
     encode zstd gzip
     request_body {
         max_size 1MB

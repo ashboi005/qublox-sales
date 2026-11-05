@@ -122,7 +122,14 @@ export const llmUsage = pgTable("llm_usage", {
   id: text("id").primaryKey(),
   jobId: text("job_id").notNull(),
   model: text("model").notNull(),
+  provider: text("provider").notNull().default("legacy"),
+  quotaTokens: integer("quota_tokens").notNull().default(0),
   costMicros: integer("cost_micros").notNull(),
   state: text("state").notNull().default("reserved"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const llmProviderState = pgTable("llm_provider_state", {
+  provider: text("provider").primaryKey(),
+  blockedUntil: timestamp("blocked_until").notNull(),
 });

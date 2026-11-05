@@ -1,9 +1,10 @@
+import { LlmDeferred, providerFor } from "./llm-provider";
 import { and, asc, eq, lt, lte, or, sql } from "drizzle-orm";
 import type { Database } from "@qublox-sales/db";
 import { campaigns, jobs, prospects } from "@qublox-sales/db/schema/sales";
 import { researchSchema, type DraftInput, type Research } from "@qublox-sales/shared";
 import type { SalesConfig } from "./config";
-import { generateDraft } from "./gateway";
+import { generateDraft } from "./llm";
 import { logActivity, lockProspect, type ProspectRow } from "./sales";
 import { researchWebsite } from "./research";
 
@@ -149,7 +150,7 @@ export async function processJob(
           draftBody: draft.body,
           draftEvidenceIds: draft.evidenceIds,
           draftCampaignVersion: campaignVersion,
-          draftModel: config.MERGE_MODEL,
+          draftModel: `${config.LLM_PROVIDER} / ${providerFor(config).model}`,
           draftStatus: "complete",
           status: draft.score ? "review" : "skipped",
         });
@@ -176,10 +177,13 @@ export async function processJob(
       }),
     );
   } catch (error) {
-    const retry = job.kind === "research" && job.attempts < 3;
+    const deferred = error instanceof LlmDeferred ? error : null;
+    const retry = deferred
+      ? !deferred.rejected || job.attempts < 3
+      : job.kind === "research" && job.attempts < 3;
     const detail =
       error instanceof Error &&
-      /^(Only public|The website|This website|This research|No usable|Gateway|Choose a campaign|The monthly)/.test(
+      /^(Only public|The website|This website|This research|No usable|AI |Choose a campaign|The monthly)/.test(
         error.message,
       )
         ? error.message.slice(0, 300)
@@ -197,7 +201,8 @@ export async function processJob(
         .update(jobs)
         .set({
           status: retry ? "queued" : "failed",
-          availableAt: new Date(Date.now() + job.attempts * 15_000),
+          availableAt: deferred?.retryAt || new Date(Date.now() + job.attempts * 15_000),
+          ...(deferred && !deferred.rejected ? { attempts: Math.max(0, job.attempts - 1) } : {}),
           error: detail,
         })
         .where(eq(jobs.id, job.id));
@@ -208,7 +213,7 @@ export async function processJob(
             lastError: detail,
             ...(job.kind === "research"
               ? { researchStatus: retry ? "queued" : "failed" }
-              : { draftStatus: "failed" }),
+              : { draftStatus: retry ? "queued" : "failed" }),
           })
           .where(eq(prospects.id, p.id));
     });

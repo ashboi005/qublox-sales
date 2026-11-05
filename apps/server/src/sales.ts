@@ -1,3 +1,4 @@
+import { providerFor } from "./llm-provider";
 import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql, sum } from "drizzle-orm";
 import type { Database } from "@qublox-sales/db";
 import {
@@ -469,11 +470,11 @@ export function createSalesService(db: Database, config: SalesConfig) {
           .from(jobs)
           .where(and(eq(jobs.prospectId, id), inArray(jobs.status, ["queued", "running"])));
         if (active) return p;
-        if (kind === "draft" && (!config.MERGE_GATEWAY_API_KEY || !config.MERGE_MODEL))
+        if (kind === "draft" && !providerFor(config).key)
           throw new AppError(
             422,
-            "GATEWAY_NOT_CONFIGURED",
-            "Add a Gateway key and model on the server, or write a manual draft.",
+            "AI_NOT_CONFIGURED",
+            "Add a Groq or Gemini API key on the server, or write a manual draft.",
           );
         if (kind === "draft" && (!p.campaignId || !p.evidence.length))
           throw new AppError(
@@ -497,6 +498,39 @@ export function createSalesService(db: Database, config: SalesConfig) {
           id,
           `${kind}_queued`,
           kind === "research" ? "Website research queued." : "Evidence-based draft queued.",
+          actor,
+        );
+        return result;
+      });
+    },
+    async cancelQueued(id: string, version: number, actor: string) {
+      return db.transaction(async (tx) => {
+        // Same lock order as the worker: cancellation must not race a job claim.
+        await tx.execute(sql`select pg_advisory_xact_lock(713219)`);
+        const p = await lockProspect(tx, id, version);
+        const [queued] = await tx
+          .select()
+          .from(jobs)
+          .where(and(eq(jobs.prospectId, id), eq(jobs.status, "queued")))
+          .for("update");
+        if (!queued)
+          throw new AppError(
+            409,
+            "JOB_NOT_QUEUED",
+            "The job has already started or finished. Refresh this prospect.",
+          );
+        await tx.update(jobs).set({ status: "cancelled", error: "" }).where(eq(jobs.id, queued.id));
+        const result = await save(tx, p, {
+          lastError: "",
+          ...(queued.kind === "research"
+            ? { researchStatus: "idle" as const }
+            : { draftStatus: "idle" as const }),
+        });
+        await logActivity(
+          tx,
+          id,
+          "job_cancelled",
+          "Queued work cancelled; manual editing is available.",
           actor,
         );
         return result;
@@ -581,8 +615,13 @@ export function createSalesService(db: Database, config: SalesConfig) {
         .from(llmUsage)
         .where(gte(llmUsage.createdAt, month));
       return {
-        gatewayConfigured: Boolean(config.MERGE_GATEWAY_API_KEY && config.MERGE_MODEL),
-        model: config.MERGE_MODEL,
+        aiConfigured: Boolean(providerFor(config).key),
+        provider: config.LLM_PROVIDER,
+        model: providerFor(config).model,
+        requestsPerMinute: config.LLM_RPM,
+        requestsPerDay: config.LLM_RPD,
+        tokensPerMinute: config.LLM_TPM,
+        tokensPerDay: config.LLM_TPD,
         monthlyBudget: config.LLM_MONTHLY_BUDGET_USD,
         monthSpent: Number(usage?.value || 0) / 1e6,
         dailyLimit: config.DAILY_CONTACT_LIMIT,

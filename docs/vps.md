@@ -10,7 +10,7 @@ flowchart LR
   API --> PG[(PostgreSQL)]
   Worker[Research / drafting worker] --> PG
   Worker -->|public addresses only| Sites[Prospect websites]
-  Worker -->|optional key| Gateway[Merge Gateway]
+  Worker -->|optional key| AI[Groq or Gemini]
   Migrate[One-shot migrations] --> PG
 ```
 
@@ -25,7 +25,7 @@ Install Docker Engine with Compose v2 on your VPS. A small VPS can run the pilot
 3. Set `DATABASE_URL` to your existing PostgreSQL connection string and generate `BETTER_AUTH_SECRET` with `openssl rand -hex 32`. Use a dedicated application database/user with migration permissions, and URL-encode special characters in credentials. `POSTGRES_PASSWORD` is not required. Replace all placeholders.
 
    The URL must resolve **from the containers**. `localhost` means the container itself. For another Dockerized database, attach these services to its private Docker network and use that database service hostname. For host PostgreSQL, configure a private reachable address and firewall/`pg_hba.conf` deliberately; do not expose port 5432 publicly. Preserve TLS verification when your database requires TLS.
-4. Set `APP_ORIGIN=https://sales.your-domain.com` with no trailing slash or path. Set `ALLOWED_EMAILS` to the exact team email addresses. Leave Gateway fields empty for manual drafting. Keep `DAILY_CONTACT_LIMIT=5` initially.
+4. Set `APP_ORIGIN=https://sales.your-domain.com` with no trailing slash or path. Set `ALLOWED_EMAILS` to the exact team email addresses. Leave AI key fields empty for manual drafting. Keep `DAILY_CONTACT_LIMIT=5` initially.
 5. Point that hostname to your VPS and configure HTTPS using your existing host reverse proxy. [deploy/Caddyfile.example](../deploy/Caddyfile.example) is a host-installed Caddy example. If your proxy is itself containerized, configure its network/address deliberately; its `127.0.0.1` is not the Docker host.
 6. Start and inspect:
 
@@ -121,11 +121,11 @@ The explicit migration run fails before the new application starts. Preserve a k
 
 - API readiness: `/health` internally executes a database query. Web health checks the login route. Worker readiness is verified through its startup log and a completed job; there is no worker health endpoint in this slice.
 - Jobs persist in PostgreSQL. A running job has a five-minute lease. A restarted worker can recover expired work. Website research gets up to three attempts; ambiguous LLM requests keep their budget reservation.
-- One worker is enough for this volume. Additional workers use transactional claims and a workspace lock, although duplicating a timed-out model call cannot be made free; monitor the provider budget.
+- One worker is enough for this volume. Groq/Gemini admissions and cooldowns are persisted in PostgreSQL; see [AI configuration](ai.md). Additional workers use transactional claims and a workspace lock, although duplicating a timed-out model call cannot be made free; monitor the provider budget.
 - Watch `docker compose logs --tail=100 worker` for `job_completed`/`job_failed`, and the review screen for user-facing failure reasons. No external monitoring service is required for the pilot.
 - HTML fetching has time, response-size, page-count, robots-rule, DNS, and redirect limits. No authenticated website cookies are forwarded. Private/link-local/reserved addresses are blocked and vetted IPs are pinned for requests.
 - The five-contact cap counts logged manual contacts in the last 24 hours, including follow-ups. It cannot stop messages you send elsewhere. It is unrelated to SMTP authentication or inbox placement.
-- Enable the hard Gateway key/project budget before enabling AI. Local admission checks cannot guarantee a maximum bill for every model/provider response.
+- Enable the provider spending controls before enabling AI. Local admission checks cannot guarantee a maximum bill for every model/provider response.
 
 ## Source references
 

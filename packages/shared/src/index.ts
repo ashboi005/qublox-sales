@@ -219,7 +219,12 @@ export const overviewSchema = z.object({
   dailyLimit: z.number(),
 });
 export const settingsSchema = z.object({
-  gatewayConfigured: z.boolean(),
+  aiConfigured: z.boolean(),
+  provider: z.enum(["groq", "gemini"]),
+  requestsPerMinute: z.number(),
+  requestsPerDay: z.number(),
+  tokensPerMinute: z.number(),
+  tokensPerDay: z.number(),
   model: z.string(),
   monthlyBudget: z.number(),
   monthSpent: z.number(),

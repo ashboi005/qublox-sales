@@ -52,22 +52,35 @@ function Settings() {
             <div>
               <dt>AI scoring &amp; drafting</dt>
               <dd>
-                <Status value={s.gatewayConfigured ? "configured" : "not connected"} />
+                <Status value={s.aiConfigured ? "configured" : "not connected"} />
                 <p>
-                  {s.gatewayConfigured
-                    ? `Merge Gateway · ${s.model}. Every draft still needs your approval.`
-                    : "Manual drafting is available. To enable generation, the server administrator must set a Merge Gateway key and an accessible model ID."}
+                  {s.aiConfigured
+                    ? `${s.provider === "groq" ? "Groq" : "Gemini"} · ${s.model}. Every draft still needs your approval.`
+                    : "Manual drafting is available. To enable generation, the server administrator must set a Groq or Gemini API key and select the provider."}
                 </p>
               </dd>
             </div>
             <div>
-              <dt>Monthly AI usage</dt>
+              <dt>Monthly AI estimate</dt>
               <dd>
-                ${s.monthSpent.toFixed(3)} / ${s.monthlyBudget.toFixed(2)} local budget
+                ${s.monthSpent.toFixed(3)} / ${s.monthlyBudget.toFixed(2)} local estimate allowance
                 <p>
-                  UTC calendar month. Usage includes held estimates when the provider does not
-                  return a price. Configure a hard budget on your Gateway key as well; the local
-                  limit is a request-admission check.
+                  UTC calendar month, estimated at paid list prices even on a free tier. Held
+                  allowances cover requests with unknown outcomes. This is not your provider bill;
+                  configure provider spending controls separately.
+                </p>
+              </dd>
+            </div>
+            <div>
+              <dt>AI request pacing</dt>
+              <dd>
+                {s.requestsPerMinute}/minute · {s.requestsPerDay}/rolling 24 hours
+                <p>
+                  {s.tokensPerMinute.toLocaleString()} tokens/minute and{" "}
+                  {s.tokensPerDay.toLocaleString()} tokens/rolling 24 hours, reserved
+                  conservatively. Drafts wait when a limit is reached. Provider cooldowns survive
+                  worker restarts. Account quotas and usage from other apps can be lower than these
+                  settings.
                 </p>
               </dd>
             </div>
