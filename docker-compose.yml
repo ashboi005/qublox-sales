@@ -1,98 +1,106 @@
 name: qublox-sales
 
+x-server-env: &server-env
+  NODE_ENV: production
+  PORT: 3000
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/qublox_sales
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+  BETTER_AUTH_URL: ${APP_ORIGIN:?Set APP_ORIGIN in .env}
+  CORS_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN in .env}
+  ALLOWED_EMAILS: ${ALLOWED_EMAILS:?Set ALLOWED_EMAILS in .env}
+  MERGE_GATEWAY_API_KEY: ${MERGE_GATEWAY_API_KEY:-}
+  MERGE_MODEL: ${MERGE_MODEL:-}
+  LLM_MONTHLY_BUDGET_USD: ${LLM_MONTHLY_BUDGET_USD:-5}
+  DAILY_CONTACT_LIMIT: ${DAILY_CONTACT_LIMIT:-5}
+
 services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: qublox_sales
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d qublox_sales"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    image: qublox-sales-server:local
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    working_dir: /app
+    command: [bun, run, db:migrate]
+    environment: *server-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  server:
+    image: qublox-sales-server:local
+    init: true
+    environment: *server-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          CMD,
+          bun,
+          -e,
+          "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    image: qublox-sales-server:local
+    init: true
+    command: [bun, dist/worker.mjs]
+    environment: *server-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 60s
+    restart: unless-stopped
+
   web:
+    image: qublox-sales-web:local
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-      secrets:
-        - web_env
-        - server_env
-      args:
-        NEXT_PUBLIC_SERVER_URL: http://localhost:3000
     init: true
     ports:
-      - "3001:3001"
-    env_file:
-      - path: apps/web/.env
-        required: false
+      - "127.0.0.1:${WEB_PORT:-3001}:3001"
     environment:
       SERVER_URL: http://server:3000
-      NEXT_PUBLIC_SERVER_URL: http://server:3000
+      NEXT_PUBLIC_SERVER_URL: ${APP_ORIGIN:?Set APP_ORIGIN in .env}
     depends_on:
       server:
         condition: service_healthy
     healthcheck:
       test:
         [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:3001/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:3001/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
-    restart: unless-stopped
-
-  server:
-    build:
-      context: .
-      dockerfile: apps/server/Dockerfile
-      secrets:
-        - web_env
-        - server_env
-    init: true
-    ports:
-      - "3000:3000"
-    env_file:
-      - path: apps/server/.env
-        required: false
-    environment:
-      CORS_ORIGIN: http://localhost:3001
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/qublox-sales
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "bun",
-          "-e",
-          "fetch('http://localhost:3000/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:18
-    container_name: qublox-sales-postgres
-    environment:
-      POSTGRES_DB: qublox-sales
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
-    ports:
-      - "5432:5432"
-    volumes:
-      - qublox-sales_postgres_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      start_period: 15s
     restart: unless-stopped
 
 volumes:
-  qublox-sales_postgres_data:
-
-# BuildKit makes these available only while install/build commands run.
-secrets:
-  web_env:
-    file: apps/web/.env
-  server_env:
-    file: apps/server/.env
+  postgres_data:
