@@ -16,7 +16,8 @@
   "dependencies": {
     "drizzle-orm": "catalog:",
     "pg": "^8.23.0",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@qublox-sales/shared": "workspace:*"
   },
   "devDependencies": {
     "@qublox-sales/config": "workspace:*",

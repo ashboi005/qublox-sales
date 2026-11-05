@@ -23,7 +23,8 @@
     "react-dom": "catalog:",
     "sonner": "catalog:",
     "varlock": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@qublox-sales/shared": "workspace:*"
   },
   "devDependencies": {
     "@qublox-sales/config": "workspace:*",

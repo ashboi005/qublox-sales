@@ -35,17 +35,20 @@
     "db:studio": "bun run --filter @qublox-sales/db db:studio",
     "db:generate": "bun run --filter @qublox-sales/db db:generate",
     "db:migrate": "bun run --filter @qublox-sales/db db:migrate",
-    "db:start": "docker compose up -d postgres",
-    "db:watch": "docker compose up postgres",
-    "db:stop": "docker compose stop postgres",
-    "db:down": "docker compose down postgres",
+    "db:start": "docker compose -f compose.dev.yml up -d --wait postgres",
+    "db:watch": "docker compose -f compose.dev.yml up postgres",
+    "db:stop": "docker compose -f compose.dev.yml stop postgres",
+    "db:down": "docker compose -f compose.dev.yml down",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
-    "auth:generate": "cd apps/server && bun run auth:generate"
+    "auth:generate": "cd apps/server && bun run auth:generate",
+    "setup": "bun scripts/setup.ts",
+    "test": "bun test apps/server/src packages/shared/src packages/auth/src",
+    "test:integration": "bun scripts/test-integration.ts"
   },
   "dependencies": {
     "zod": "catalog:"
