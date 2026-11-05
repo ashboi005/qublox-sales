@@ -20,6 +20,7 @@ type Action = "approve" | "contacted" | "replied" | "close" | "skip" | "suppress
 type Write = (suffix: string, body: unknown, method?: string, success?: string) => Promise<boolean>;
 const terminal = new Set(["contacted", "replied", "closed", "suppressed"]);
 const active = (p: Prospect) =>
+  !terminal.has(p.status) &&
   [p.researchStatus, p.draftStatus].some((s) => s === "queued" || s === "running");
 
 export function ProspectReview({ id }: { id: string }) {
@@ -233,7 +234,9 @@ export function ProspectReview({ id }: { id: string }) {
         <section className="review-pane" aria-label="Prospect evidence">
           <div className="pane-heading">
             <h2>01 / The evidence</h2>
-            <span className="hint">{p.evidence.length} sources</span>
+            <span className="hint">
+              {p.evidence.length} {p.evidence.length === 1 ? "source" : "sources"}
+            </span>
           </div>
           <dl className="facts">
             <dt>Platform</dt>

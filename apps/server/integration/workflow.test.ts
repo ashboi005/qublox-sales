@@ -350,6 +350,21 @@ test("a removed member cannot use an existing session", async () => {
   expect(response.status).toBe(403);
 });
 
+test("suppression cancels active research and clears its processing state", async () => {
+  const service = createSalesService(db, config);
+  let p = await service.createProspect(
+    prospectInput.parse({ name: "Queued opt-out", website: "queued-optout.example" }),
+    "test",
+  );
+  p = await service.enqueue(p.id, p.version, "research", "test");
+  expect(p.researchStatus).toBe("queued");
+  p = await service.action(p.id, p.version, "suppress", "test");
+  expect(p.status).toBe("suppressed");
+  expect(p.researchStatus).toBe("idle");
+  const [job] = await db.select().from(jobs).where(eq(jobs.prospectId, p.id));
+  expect(job?.status).toBe("cancelled");
+});
+
 test("offline password reset revokes sessions and changes the accepted credential", async () => {
   const config = { ...authConfig, ALLOWED_EMAILS: "reset@qublox.local" };
   const member = {

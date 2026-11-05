@@ -103,7 +103,7 @@ textarea {
   width: 100%;
   min-width: 0;
   padding: var(--space-sm) var(--space-sm);
-  border: 1px solid var(--color-rule);
+  border: 1px solid var(--color-muted);
   background: var(--color-input);
   color: var(--color-ink);
   border-radius: var(--radius-pill);

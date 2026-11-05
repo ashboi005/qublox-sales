@@ -321,6 +321,8 @@ export function createSalesService(db: Database, config: SalesConfig) {
               status: "suppressed",
               approvalVersion: null,
               followUpAt: null,
+              researchStatus: sql`case when ${prospects.researchStatus} in ('queued', 'running') then 'idle' else ${prospects.researchStatus} end`,
+              draftStatus: sql`case when ${prospects.draftStatus} in ('queued', 'running') then 'idle' else ${prospects.draftStatus} end`,
               version: sql`${prospects.version} + 1`,
               updatedAt: new Date(),
             })
@@ -335,9 +337,12 @@ export function createSalesService(db: Database, config: SalesConfig) {
             .update(jobs)
             .set({ status: "cancelled" })
             .where(
-              inArray(
-                jobs.prospectId,
-                affected.map((row) => row.id),
+              and(
+                inArray(jobs.status, ["queued", "running"]),
+                inArray(
+                  jobs.prospectId,
+                  affected.map((row) => row.id),
+                ),
               ),
             );
           for (const row of affected)
