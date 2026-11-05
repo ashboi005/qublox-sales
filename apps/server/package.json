@@ -22,7 +22,8 @@
     "ipaddr.js": "^2.5.0",
     "varlock": "catalog:",
     "zod": "catalog:",
-    "@qublox-sales/shared": "workspace:*"
+    "@qublox-sales/shared": "workspace:*",
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@qublox-sales/config": "workspace:*",

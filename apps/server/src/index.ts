@@ -1,26 +1,10 @@
-import { cors } from "@elysiajs/cors";
-import { Elysia } from "elysia";
-
+import { createApp } from "./app";
+import { salesConfig } from "./config";
 import { ENV } from "./env.server";
-import { auth } from "./services";
+import { auth, db } from "./services";
 
-new Elysia()
-  .use(
-    cors({
-      origin: ENV.CORS_ORIGIN,
-      methods: ["GET", "POST", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
-      credentials: true,
-    }),
-  )
-  .all("/api/auth/*", async (context) => {
-    const { request, status } = context;
-    if (["POST", "GET"].includes(request.method)) {
-      return auth.handler(request);
-    }
-    return status(405);
-  })
-  .get("/", () => "OK")
-  .listen(3000, () => {
-    console.log("Server is running on http://localhost:3000");
-  });
+const app = createApp({ db, auth, origin: ENV.CORS_ORIGIN, config: salesConfig(process.env) }).listen(3000);
+console.log("Qublox API listening on http://localhost:3000");
+async function shutdown() { await app.stop(); await db.$client.end(); process.exit(0); }
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
