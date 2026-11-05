@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 
@@ -16,9 +16,10 @@ if (Object.keys(files).some((file) => existsSync(resolve(root, file)))) {
     "Configuration already exists; no secrets or files were overwritten. See .env.example and README.md for configuration.",
   );
 } else {
-  for (const [file, content] of Object.entries(files))
-    await Bun.write(resolve(root, file), content);
+  for (const [file, content] of Object.entries(files)) {
+    writeFileSync(resolve(root, file), content, { mode: 0o600, flag: "wx" });
+  }
   console.log(
-    "Created ignored local configuration with random secrets. Local signup email: dev@qublox.local. Choose your own password of at least 12 characters. Add your actual team emails before deployment.",
+    "Created private, ignored local configuration with random secrets. Provision your local account with: bun run team:add --email dev@qublox.local --name 'Local user'. Add your actual team emails before deployment.",
   );
 }
