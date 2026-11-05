@@ -53,7 +53,8 @@
     "setup": "bun scripts/setup.ts",
     "test": "bun test apps/server/src packages/shared/src packages/auth/src apps/maps-extension/tests",
     "extension:build": "bun scripts/build-extension.ts",
-    "test:integration": "bun scripts/test-integration.ts"
+    "test:integration": "bun scripts/test-integration.ts",
+    "simulate": "bun scripts/simulate-workflow.ts"
   },
   "dependencies": {
     "zod": "catalog:"

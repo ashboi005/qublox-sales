@@ -8,7 +8,7 @@ A private sales research workspace for a small team. Built with your selected Be
 - Offers that define the audience, service, real proof, and call to action.
 - Collect Maps businesses with the integrated Chrome/Brave extension, then send an editable batch to the app for confirmation. JSON/CSV export is also available. Domains deduplicate across offers; source links and capture times are retained.
 - Queue bounded public website research. Collect visible contact details, social links, page excerpts, and platform clues with source URLs and timestamps.
-- Optional Merge Gateway scoring and drafting, using your own credits. Drafts cite stored evidence; score zero skips the lead. Manual drafting works without an API key.
+- Optional direct Groq or Gemini scoring and drafting, with shared request/token limits. Drafts cite stored evidence; score zero skips the lead. Manual drafting works without an API key.
 - Split-screen evidence and draft review. Edit contacts, switch email/Instagram, save, approve, and regenerate. Edits and offer changes revoke approval; stale writes are rejected.
 - Copy an approved message or open it in your email app. Record a manual send, review seven-day follow-up reminders, log replies, close conversations, and suppress businesses.
 - Default shared limit of five recorded contacts per rolling 24 hours. Approval never sends anything.
@@ -35,14 +35,14 @@ Local ports: web **3001**, API **3100**, PostgreSQL **5438** on loopback. The AP
 
 `setup` creates ignored local environment files with random secrets and a development email allowlist. It refuses to overwrite existing configuration. If setup reports existing files, use them or edit them deliberately; do not delete a database password while keeping the corresponding PostgreSQL volume.
 
-For actual team accounts, put their exact email addresses in `ALLOWED_EMAILS` in `apps/server/.env.local`, restart the API, then run `team:add` for each person. The root `.env` is for Docker; development reads the app-specific files. Passwords need at least 12 characters. There is no verification-email service or public registration route to manage.
+`ALLOWED_EMAILS` controls who can log into the dashboard, not which inbox sends outreach. Personal Gmail addresses are fine; branded mailboxes are not required. For actual team accounts, put their exact email addresses in `ALLOWED_EMAILS` in `apps/server/.env.local`, restart the API, then run `team:add` for each person. The root `.env` supplies root commands and Docker; app-specific `.env.local` files support running workspaces directly. Root/shell variables take precedence when inherited by child commands. Setup uses the local database URL at port 5438; replace it with your existing database URL for deployment. Keep database/key settings consistent if you launch workspaces directly. Passwords need at least 12 characters. There is no verification-email service or public registration route to manage.
 
 ## First session
 
 1. Create one focused offer under **Offers**.
 2. Add a prospect or import a JSON array containing up to 100 records below 850 KB. The extension's `name`, `website`, `phone`, `address`, `url`, and `scrapedAt` fields are supported. Invalid rows are reported; duplicates are skipped.
 3. Open the prospect and select **Research website**. The worker gathers the home page and up to three relevant pages. You can also add observations manually from a public source.
-4. Choose the offer and recipient/channel. Generate a draft when Gateway is configured, or write one yourself, selecting supporting sources and a signal score.
+4. Choose the offer and recipient/channel. Generate a draft when an AI provider is configured, or write one yourself, selecting supporting sources and a signal score.
 5. Save, review, and approve the exact saved version. Send from your own mailbox or Instagram. Select **Mark as sent** only after sending.
 6. Use **Follow-ups** for reminders. Mark replies or add opt-outs to the do-not-contact list.
 
@@ -54,34 +54,48 @@ Collect a visible Maps search or a single profile, enter your workspace origin i
 
 Captured-DOM and simulated Chrome API tests pass; the import preview was checked in a real browser. Native unpacked-extension installation and Chrome permission prompts still need a smoke check in your profile.
 
-## Merge Gateway
+## Groq or Gemini
 
-No new service purchase is required. In development, set these in `apps/server/.env.local`; for Docker, set them in the root `.env`:
+Merge is no longer used. Start with Groq GPT-OSS 20B, or select Gemini Flash-Lite. See [model research, usage calculations and rate-limit behavior](docs/ai.md).
+
+For Docker, set these in root `.env`; for local development, use `apps/server/.env.local`:
 
 ```dotenv
-MERGE_GATEWAY_API_KEY=your-existing-gateway-key
-MERGE_MODEL=exact-model-id-from-your-gateway-catalog
-LLM_MONTHLY_BUDGET_USD=5
+LLM_PROVIDER=groq
+GROQ_API_KEY=your-key
+LLM_MODEL=openai/gpt-oss-20b
+LLM_RPM=1
+LLM_RPD=20
+LLM_TPM=8000
+LLM_TPD=100000
+LLM_MONTHLY_BUDGET_USD=1
 ```
 
-Use a cheap text model accessible to your key. The adapter calls the fixed [Merge OpenAI-compatible endpoint](https://docs.merge.dev/merge-gateway/agent-quickstart), caps source text and output tokens, and provides no model tools. It records returned model cost plus the Merge fee. If a price is missing or a request has an ambiguous outcome, a $0.05 reservation is held. Draft requests are not automatically retried after failures.
+For Gemini, set `LLM_PROVIDER=gemini`, `GEMINI_API_KEY=your-key`, and `LLM_MODEL=gemini-2.5-flash-lite`. Restart API and worker. Keys stay on the server. Set allowances at or below your actual account quotas. Queued work waits for capacity; use **Cancel queued work** to write manually during a long cooldown.
 
-The local monthly limit is an admission check, not a hard billing cap: an individual request could cost more than its reservation. Set a hard budget on the Gateway key/project as well. Your $10 credit is not assumed to reset on a specific date; the app's own ledger uses UTC calendar months. See [Merge's pricing and budget documentation](https://docs.merge.dev/merge-gateway/cost/pricing).
-
-Keys never go to the browser. Only the prospect evidence and your offer are sent to the model. Live model generation remains untested until you supply a key and accessible model ID; repeatable tests use a stub and spend no credits.
+Five prospects per working day plus regenerations is about 150 model calls/month. At an illustrative 2,000 input and 800 output tokens per call, paid list-price estimates are about $0.06/month on Groq 20B or $0.08/month on Gemini 2.5 Flash-Lite. Eligible free-tier calls may cost $0. The app estimates at paid prices regardless of account tier and cannot establish your provider bill or guarantee a spending cap. Scraping makes no LLM calls. Provider access and live output quality remain untested without your key; automated tests spend no credits.
 
 ## VPS deployment
 
-See the full [VPS runbook](docs/vps.md). The short version, on the VPS:
+Your intended public origin is `https://sales.qubloxhq.com`. Use localhost until DNS and HTTPS are ready. See the full [VPS runbook](docs/vps.md). The short version, on the VPS:
 
 ```bash
 cp .env.example .env
-# Edit .env: random secrets, HTTPS origin, team email list; Gateway optional.
+# Edit .env: random secrets, HTTPS origin, team email list; Groq/Gemini optional.
 docker compose up -d --build
 docker compose exec server bun run team:add --email you@your-domain.com --name 'Your name'
 ```
 
 Set `DATABASE_URL` to your existing PostgreSQL. Compose runs checked-in migrations, then starts the API, worker, and web app. It does not start a second database. An optional `compose.postgres.yml` override provides a bundled database if needed; see the runbook. Only the web port is published, on `127.0.0.1:3001`. Put your existing HTTPS reverse proxy in front of it. The API has no published host port; keep your existing database private. No VPS deployment has been performed by this build.
+
+## Workflow simulation
+
+```bash
+bun run db:start
+bun run simulate
+```
+
+This exercises private login, import/duplicates/invalid rows, actual public demo-site research, evidence-linked manual drafting, approval invalidation, simulated contact, due follow-up, reply, and suppression through the HTTP API. It uses only local PostgreSQL at port 5438 and resets the dedicated **`qublox_sales_simulation`** database. It never uses the production `DATABASE_URL`, sends no outreach and makes no LLM calls. The ignored report is `artifacts/workflow-simulation.json`. It requires the generated local `POSTGRES_PASSWORD`; it is a local development check, not a command to point at your VPS.
 
 ## Checks
 
@@ -93,7 +107,7 @@ bun run build
 bun audit
 ```
 
-Integration tests create and truncate only the isolated `qublox_sales_test` database on local PostgreSQL at port 5438. The runner refuses to target the application database. They cover authentication, private provisioning and resets, cross-origin writes, persistence, import failures, suppression, versioned approval, concurrent daily limits, worker leases and stale results, and Gateway reservations.
+Integration tests create and truncate only the isolated `qublox_sales_test` database on local PostgreSQL at port 5438. The runner refuses to target the application database. They cover authentication, private provisioning and resets, cross-origin writes, persistence, import failures, suppression, versioned approval, concurrent daily limits, worker leases and stale results, and AI quotas, cooldowns and cost reservations.
 
 `bun run format` formats source and configuration. Checkpoints and validation evidence are in [docs/verification.md](docs/verification.md).
 
