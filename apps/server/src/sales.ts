@@ -15,6 +15,7 @@ export async function logActivity(db: Writer, id: string, kind: string, detail: 
   await db.insert(activities).values({ id: newId(), prospectId: id, kind, detail, actor });
 }
 export async function lockProspect(tx: Tx, id: string, version?: number) {
+  await tx.execute(sql`select pg_advisory_xact_lock(713219)`);
   const [p] = await tx.select().from(prospects).where(eq(prospects.id, id)).for("update");
   if (!p) throw new AppError(404, "NOT_FOUND", "Prospect not found.");
   if (version !== undefined && p.version !== version) conflict();

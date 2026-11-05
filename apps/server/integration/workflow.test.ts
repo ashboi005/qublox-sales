@@ -3,6 +3,12 @@ import { createDb } from "@qublox-sales/db";
 import { createAuth } from "@qublox-sales/auth";
 import { createApp } from "../src/app";
 import type { Campaign, Prospect } from "@qublox-sales/shared";
+import { createSalesService } from "../src/sales";
+import { claimJob, processJob } from "../src/jobs";
+import { generateDraft } from "../src/gateway";
+import { jobs, llmUsage, prospects } from "@qublox-sales/db/schema/sales";
+import { eq } from "drizzle-orm";
+import { prospectInput } from "@qublox-sales/shared";
 
 if (!process.env.DATABASE_URL?.endsWith("/qublox_sales_test")) throw new Error("Integration tests require the isolated qublox_sales_test database.");
 const db = createDb({ DATABASE_URL: process.env.DATABASE_URL });
@@ -48,7 +54,7 @@ test("campaign → evidence → approval → contact, with stale edits and suppr
   expect(lead.verificationStatus).toBe("unverified");
   const evidence = await request(`/api/prospects/${lead.id}/evidence`, "POST", { version: lead.version, url: "https://example.com/events", title: "Registration", text: "Email us your registration details." });
   lead = evidence.data;
-  const saved = await request(`/api/prospects/${lead.id}/draft`, "PUT", { version: lead.version, score: 2, rationale: "A public manual registration flow", evidenceIds: [lead.evidence[0].id], subject: "Workshop registrations", body: "Could a registration form help?" });
+  const saved = await request(`/api/prospects/${lead.id}/draft`, "PUT", { version: lead.version, score: 2, rationale: "A public manual registration flow", evidenceIds: [lead.evidence[0]!.id], subject: "Workshop registrations", body: "Could a registration form help?" });
   lead = saved.data;
   lead = (await request(`/api/prospects/${lead.id}/actions`, "POST", { version: lead.version, action: "approve" })).data;
   expect(lead.status).toBe("approved");
@@ -80,4 +86,57 @@ test("Maps JSON import deduplicates domains and preserves source timestamps", as
   const list = await request<{ data: Prospect[] }>("/api/prospects?q=import.example");
   expect(list.data.data[0]!.sourceCapturedAt).toBe("2026-11-01T10:00:00.000Z");
   expect(list.data.data[0]!.sourceUrl).toContain("google.com/maps");
+});
+
+test("a removed member cannot use an existing session", async () => {
+  const restricted = createApp({ db, auth, origin, config: { ...config, ALLOWED_EMAILS: "someone-else@example.com" } });
+  const response = await restricted.handle(new Request(`${origin}/api/prospects`, { headers: { Cookie: cookie } }));
+  expect(response.status).toBe(403);
+});
+
+test("jobs are claimed once, stale leases cannot overwrite, and restarted work recovers", async () => {
+  const sales = createSalesService(db, config);
+  const lead = await sales.createProspect(prospectInput.parse({ name: "Worker test", website: "worker.example" }), "Test");
+  const queued = await sales.enqueue(lead.id, lead.version, "research", "Test");
+  const claimed = await Promise.all([claimJob(db), claimJob(db)]);
+  const first = claimed.find(Boolean)!;
+  expect(claimed.filter(Boolean)).toHaveLength(1);
+  await db.update(jobs).set({ lockedAt: new Date(Date.now() - 600_000) }).where(eq(jobs.id, first.id));
+  const recovered = (await claimJob(db))!;
+  expect(recovered.leaseId).not.toBe(first.leaseId);
+  const research = { summary: "A small business", platform: "Unknown", emails: ["contact@worker.example"], phones: [], socials: [], evidence: [{ id: crypto.randomUUID(), kind: "website" as const, url: "https://worker.example/", title: "Website", text: "A public business description.", retrievedAt: new Date().toISOString() }], warnings: [] };
+  await processJob(db, config, first, { research: async () => research });
+  expect((await sales.detail(lead.id)).prospect.researchStatus).toBe("running");
+  await processJob(db, config, recovered, { research: async () => research });
+  const result = (await sales.detail(lead.id)).prospect;
+  expect(result.researchStatus).toBe("complete");
+  expect(result.email).toBe("contact@worker.example");
+  expect(result.verificationStatus).toBe("unverified");
+  expect(result.version).toBe(queued.version + 1);
+});
+
+test("editing a prospect cancels an in-flight research result", async () => {
+  const sales = createSalesService(db, config);
+  let lead = await sales.createProspect(prospectInput.parse({ name: "Stale test", website: "stale.example" }), "Test");
+  lead = await sales.enqueue(lead.id, lead.version, "research", "Test");
+  const job = (await claimJob(db))!;
+  lead = await sales.updateProspect(lead.id, lead.version, prospectInput.parse({ ...lead, name: "Updated business", sourceCapturedAt: null }), "Test");
+  await processJob(db, config, job, { research: async () => ({ summary: "Old data", platform: "Unknown", emails: [], phones: [], socials: [], evidence: [], warnings: [] }) });
+  const result = (await sales.detail(lead.id)).prospect;
+  expect(result.name).toBe("Updated business");
+  expect(result.research).toBeNull();
+  expect(result.researchStatus).toBe("idle");
+});
+
+test("ambiguous Gateway cost retains a reservation and blocks overspending", async () => {
+  await db.delete(llmUsage);
+  const p = (await db.select().from(prospects).where(eq(prospects.domain, "worker.example")))[0]!;
+  const campaign = { name: "Website", audience: "Small businesses", offer: "Website work", proof: "", callToAction: "Can I show an example?" };
+  const fakeFetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ score: 0, rationale: "No relevant need", evidenceIds: [], subject: "", body: "" }) } }] }), { headers: { "Content-Type": "application/json" } });
+  const limited = { ...config, MERGE_GATEWAY_API_KEY: "test-key-not-real", MERGE_MODEL: "test/model", LLM_MONTHLY_BUDGET_USD: 0.05 };
+  expect((await generateDraft(db, limited, crypto.randomUUID(), p, campaign, fakeFetch)).score).toBe(0);
+  await expect(generateDraft(db, limited, crypto.randomUUID(), p, campaign, fakeFetch)).rejects.toThrow("allowance");
+  const usage = await db.select().from(llmUsage);
+  expect(usage).toHaveLength(1);
+  expect(usage[0]!.state).toBe("reserved");
 });

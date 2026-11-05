@@ -22,7 +22,7 @@ const webUrl = z.string().trim().max(2048).refine(value => {
   if (!value) return true;
   try { const u = new URL(value); return ["http:", "https:"].includes(u.protocol) && !u.username && !u.password; } catch { return false; }
 }, "Enter an http or https URL.");
-const email = z.string().trim().toLowerCase().pipe(z.union([z.email(), z.literal("")])).default("").transform(value => value || null);
+const email = z.string().trim().toLowerCase().pipe(z.union([z.email(), z.literal("")])).nullable().default("").transform(value => value || null);
 
 export const campaignInput = z.object({
   name: z.string().trim().min(1).max(100),
