@@ -1,6 +1,7 @@
 "use client";
 import { settingsSchema } from "@qublox-sales/shared";
 import { GmailSender } from "@/components/gmail-sender";
+import { AccountPassword } from "@/components/account-password";
 import { Workspace, Loading, Notice, Status } from "@/components/workspace";
 import { useResource } from "@/lib/use-resource";
 
@@ -24,6 +25,7 @@ function Settings() {
         <button onClick={settings.reload}>Refresh status</button>
       </div>
       {settings.error && <Notice error>{settings.error}</Notice>}
+      {s && <AccountPassword role={s.role} />}
       {s && <GmailSender settings={s} onChange={settings.reload} />}
       {settings.loading ? (
         <Loading label="Checking workspace settings…" />

@@ -1031,3 +1031,38 @@ test("automatic pipeline researches a new lead, then queues its draft without cl
   );
   expect(manual.researchStatus).toBe("idle");
 });
+
+test("any signed-in teammate can change their own password with the current one", async () => {
+  const member = {
+    name: "Changer",
+    email: "changer@qublox.local",
+    password: "generated-Xy7-q9-long",
+  };
+  await provisionTeamAccount(authConfig, db, member);
+  const signIn = (password: string) =>
+    app.handle(
+      new Request(`${origin}/api/auth/sign-in/email`, {
+        method: "POST",
+        headers: { Origin: origin, "Content-Type": "application/json" },
+        body: JSON.stringify({ email: member.email, password }),
+      }),
+    );
+  const login = await signIn(member.password);
+  const memberCookie = login.headers
+    .getSetCookie()
+    .map((v) => v.split(";")[0])
+    .join("; ");
+  const change = (currentPassword: string, newPassword: string) =>
+    app.handle(
+      new Request(`${origin}/api/auth/change-password`, {
+        method: "POST",
+        headers: { Origin: origin, Cookie: memberCookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword, revokeOtherSessions: true }),
+      }),
+    );
+  expect((await change("not-the-current-password", "my-easier-password-1")).status).toBe(400);
+  expect((await change(member.password, "short")).status).toBe(400);
+  expect((await change(member.password, "my-easier-password-1")).status).toBe(200);
+  expect((await signIn(member.password)).status).toBe(401);
+  expect((await signIn("my-easier-password-1")).status).toBe(200);
+});
