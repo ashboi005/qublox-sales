@@ -275,7 +275,20 @@ export async function callModel(
     const until = retryAt(response.headers, new Date(), false, quotaTokens);
     if (until.getTime() > Date.now()) await cooldown(db, selected.provider, until);
     if (!response.ok) {
-      await response.body?.cancel().catch(() => {});
+      // Log the provider's error code (never the prompt) so failures can be told apart,
+      // e.g. Groq's json_validate_failed versus a bad key.
+      const detail = await response
+        .text()
+        .then((t) => t.slice(0, 2000))
+        .catch(() => "");
+      console.error(
+        JSON.stringify({
+          event: "ai_provider_error",
+          provider: selected.provider,
+          status: response.status,
+          code: detail.match(/"(?:code|status)"\s*:\s*"([\w.-]{1,60})"/)?.[1] || "",
+        }),
+      );
       if ([400, 401, 403, 404, 422].includes(response.status)) {
         await db
           .update(llmUsage)
