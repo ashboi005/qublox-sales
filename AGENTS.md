@@ -15,6 +15,8 @@ Latest slice: `tasks/team-outreach.md` (all done). Codex's earlier Gmail slice (
 - automatic research → draft pipeline (`AUTO_PIPELINE`)
 - scraper fixes measured on 20 real sites (`docs/research/2026-11-06-scraper-hit-rate.md`)
 - self-service password change
+- Polish with AI on Offers (`apps/server/src/offer-polish.ts`)
+- Find leads in the portal via Google Places or OpenStreetMap (`apps/server/src/discovery.ts`, `docs/lead-search.md`)
 
 User-facing explanation of the app: `docs/user-guide.md`. Verification history: `docs/verification.md`.
 

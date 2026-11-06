@@ -99,3 +99,11 @@ Continued in Claude Code after Codex reached its usage limit; the staged Gmail s
 - Scraper: 20 real sites, read-only, robots respected. Email found on 9 → 14 sites, readable 14 → 19, junk addresses 5 → 0 (`docs/research/2026-11-06-scraper-hit-rate.md`).
 - Password change: integration test plus an HTTP smoke test on the running local dev stack (sign-in, settings, change password, all pages 200) with a throwaway local account that was then deleted. The Chrome extension was not connected, so no screenshot-level UI check was done this round.
 - VPS database: the five migrations up to team senders were applied with the owner's permission; the WhatsApp/no-website migration (`20261106133216_boring_payback`) is not yet applied there.
+
+## Offer polish and in-portal lead search — 6 November 2026
+
+- `bun run test`: 66 pass. `bun run test:integration`: 44 pass. Simulation passes. Types pass.
+- Polish with AI: live Groq check on the owner's real rough offer returned a clearer offer, kept every claim, and changed the ask to "Can I send you a few examples that match your industry?". Nothing is saved until accepted.
+- Find leads: Google Places mapping, paging, closed-place filtering, key errors and the monthly allowance are tested with stubbed responses; no live Places request was made (no key configured). OpenStreetMap live check: names are found but few contacts (39 Amritsar hotels, 5 with phone, 3 with website; "clothing store" phrasing found none, "clothes shop" found 6).
+- Smoke test on the running local dev stack with a temporary account (deleted afterwards): settings report OpenStreetMap, lead-search history loads, and an incomplete polish request now returns a validation error instead of an AI failure.
+- VPS: migration `20261106140111_jittery_bedlam` (lead_search table) still needs applying.
