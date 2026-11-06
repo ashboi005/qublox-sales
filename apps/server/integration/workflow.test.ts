@@ -1431,3 +1431,45 @@ test("a robots.txt refusal fails research once instead of retrying", async () =>
   expect(detail.researchStatus).toBe("failed");
   expect(detail.lastError).toContain("does not permit");
 });
+
+test("bulk offer assignment researches leads with sites, drafts listing-only ones and skips contacted", async () => {
+  const sales = createSalesService(db, salesConfig({ ...config, GROQ_API_KEY: "fake-key" }));
+  const offer = await sales.createCampaign(aiCampaign);
+  const site = await sales.createProspect(
+    prospectInput.parse({ name: "Bulk site", website: "bulk-site.example" }),
+    "Test",
+  );
+  const listing = await sales.createProspect(
+    prospectInput.parse({ name: "Bulk listing", phone: "+91 98111 22334" }),
+    "Test",
+    {
+      id: crypto.randomUUID(),
+      url: "https://maps.example/bulk",
+      title: "Google Maps listing",
+      text: "Google Maps listing for Bulk listing. No website is listed on the Maps profile.",
+      kind: "listing",
+      retrievedAt: new Date().toISOString(),
+    },
+  );
+  const contacted = await sales.createProspect(
+    prospectInput.parse({ name: "Bulk contacted", website: "bulk-contacted.example" }),
+    "Test",
+  );
+  await db.update(prospects).set({ status: "contacted" }).where(eq(prospects.id, contacted.id));
+  const result = await sales.assignOffer(
+    [site, listing, contacted].map((p) => ({ id: p.id, version: p.version })),
+    offer.id,
+    "Test",
+  );
+  expect(result).toMatchObject({ updated: 2, research: 1, drafts: 1 });
+  expect(result.skipped).toHaveLength(1);
+  const after = await db.select().from(prospects).where(eq(prospects.campaignId, offer.id));
+  expect(after.map((p) => p.name).sort()).toEqual(["Bulk listing", "Bulk site"]);
+  const queued = await db.select().from(jobs).where(eq(jobs.status, "queued"));
+  expect(
+    queued
+      .filter((j) => [site.id, listing.id].includes(j.prospectId))
+      .map((j) => j.kind)
+      .sort(),
+  ).toEqual(["draft", "research"]);
+});

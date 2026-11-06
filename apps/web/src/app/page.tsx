@@ -9,6 +9,7 @@ import { campaignsSchema, ProspectEntry } from "@/components/prospect-entry";
 import { BulkEmailQueue } from "@/components/email-delivery";
 import { MapsImport } from "@/components/maps-import";
 import { FindLeads } from "@/components/find-leads";
+import { BulkOffer } from "@/components/bulk-offer";
 import { useResource } from "@/lib/use-resource";
 import { date } from "@/lib/api";
 
@@ -26,6 +27,7 @@ function Prospects() {
   const [campaign, setCampaign] = useState("");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<"recent" | "opportunity">("recent");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [entry, setEntry] = useState<"add" | "import" | "find" | null>(null);
   const query = new URLSearchParams({
     page: String(page),
@@ -120,6 +122,12 @@ function Prospects() {
       )}
       <MapsImport campaigns={offers.data || []} onImported={reload} />
       <BulkEmailQueue records={list.data?.data || []} onQueued={reload} />
+      <BulkOffer
+        selected={(list.data?.data || []).filter((p) => picked.has(p.id))}
+        campaigns={offers.data || []}
+        onDone={reload}
+        onClear={() => setPicked(new Set())}
+      />
       <div className="pipeline-tabs" role="group" aria-label="Pipeline stage">
         {(
           [
@@ -248,6 +256,20 @@ function Prospects() {
               <caption className="visually-hidden">Prospect pipeline</caption>
               <thead>
                 <tr>
+                  <th className="pick">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all leads on this page"
+                      checked={
+                        list.data.data.length > 0 && list.data.data.every((p) => picked.has(p.id))
+                      }
+                      onChange={(e) =>
+                        setPicked(
+                          e.target.checked ? new Set(list.data!.data.map((p) => p.id)) : new Set(),
+                        )
+                      }
+                    />
+                  </th>
                   <th>Business / domain</th>
                   <th>Offer</th>
                   <th>Channel</th>
@@ -264,6 +286,21 @@ function Prospects() {
               <tbody>
                 {list.data.data.map((p) => (
                   <tr key={p.id}>
+                    <td className="pick">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${p.name}`}
+                        checked={picked.has(p.id)}
+                        onChange={(e) =>
+                          setPicked((old) => {
+                            const next = new Set(old);
+                            if (e.target.checked) next.add(p.id);
+                            else next.delete(p.id);
+                            return next;
+                          })
+                        }
+                      />
+                    </td>
                     <td>
                       <Link href={`/prospects/${p.id}`}>{p.name}</Link>
                       <small>{p.domain || p.phone || "No website"}</small>

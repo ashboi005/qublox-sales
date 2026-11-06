@@ -26,6 +26,7 @@ import {
   type Evidence,
   type ProspectInput,
   type ProspectStatus,
+  isSocialOrDirectory,
 } from "@qublox-sales/shared";
 import type { SalesConfig } from "./config";
 import { AppError, conflict } from "./errors";
@@ -734,6 +735,72 @@ export function createSalesService(db: Database, config: SalesConfig) {
         );
         return result;
       });
+    },
+    // Bulk: give selected leads an offer (or none) and start the pipeline for each:
+    // research when the website has not been read yet, otherwise a fresh draft for the offer.
+    // Each lead is its own transaction, so one stale or contacted lead does not block the rest.
+    async assignOffer(
+      items: { id: string; version: number }[],
+      campaignId: string | null,
+      actor: string,
+    ) {
+      if (campaignId) {
+        const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId));
+        if (!campaign) throw new AppError(404, "NOT_FOUND", "Offer not found.");
+      }
+      const result = {
+        updated: 0,
+        research: 0,
+        drafts: 0,
+        skipped: [] as { id: string; reason: string }[],
+      };
+      for (const item of items) {
+        try {
+          await db.transaction(async (tx) => {
+            const p = await lockProspect(tx, item.id, item.version);
+            assertEditable(p);
+            await assertNotSuppressed(tx, p);
+            const changed = p.campaignId !== campaignId;
+            const kind = !campaignId
+              ? null
+              : p.website && p.researchStatus !== "complete" && !isSocialOrDirectory(p.website)
+                ? ("research" as const)
+                : p.evidence.length && aiConfigured(config)
+                  ? ("draft" as const)
+                  : null;
+            const saved = await save(tx, p, {
+              campaignId,
+              approvalVersion: null,
+              lastError: "",
+              ...(changed ? { draftCampaignVersion: null } : {}),
+              ...(kind === "research" ? { researchStatus: "queued" as const } : {}),
+              ...(kind === "draft" ? { draftStatus: "queued" as const } : {}),
+            });
+            if (kind)
+              await tx
+                .insert(jobs)
+                .values({ id: newId(), prospectId: p.id, kind, inputVersion: saved.version });
+            await logActivity(
+              tx,
+              p.id,
+              kind ? `${kind}_queued` : "updated",
+              campaignId
+                ? `Offer set in bulk.${kind === "research" ? " Website research queued." : kind === "draft" ? " Draft queued." : ""}`
+                : "Offer removed in bulk.",
+              actor,
+            );
+            result.updated++;
+            if (kind === "research") result.research++;
+            if (kind === "draft") result.drafts++;
+          });
+        } catch (error) {
+          result.skipped.push({
+            id: item.id,
+            reason: error instanceof AppError ? error.message : "Could not be updated.",
+          });
+        }
+      }
+      return result;
     },
     async cancelQueued(id: string, version: number, actor: string) {
       return db.transaction(async (tx) => {

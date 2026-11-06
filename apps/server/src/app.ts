@@ -196,6 +196,18 @@ export function createApp(options: {
             .parse(body);
           return sales.action(id(params.id), input.version, input.action, actor);
         })
+        .post("/prospects/assign-offer", ({ body, actor }) => {
+          const input = z
+            .object({
+              items: z
+                .array(z.object({ id: z.uuid(), version: z.number().int().min(1) }))
+                .min(1)
+                .max(100),
+              campaignId: z.uuid().nullable(),
+            })
+            .parse(body);
+          return sales.assignOffer(input.items, input.campaignId, actor);
+        })
         .post("/prospects/:id/jobs", ({ params, body, actor }) => {
           const input = revisionSchema.extend({ kind: z.enum(["research", "draft"]) }).parse(body);
           return sales.enqueue(id(params.id), input.version, input.kind, actor);

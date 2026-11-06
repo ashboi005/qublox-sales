@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { z } from "zod";
 import { leadSearchSchema, settingsSchema, type Campaign } from "@qublox-sales/shared";
 import { api, message, time } from "@/lib/api";
@@ -21,13 +21,12 @@ export function FindLeads({
 }) {
   const settings = useResource("/settings", settingsSchema);
   const recent = useResource("/lead-searches", history);
+  // "" = not chosen yet, "none" = no offer. Never pre-filled: a silently pre-selected offer
+  // once attached a textile pitch to a real-estate search.
   const [campaignId, setCampaignId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [last, setLast] = useState<z.infer<typeof leadSearchSchema> | null>(null);
-  useEffect(() => {
-    if (!campaignId && campaigns[0]) setCampaignId(campaigns[0].id);
-  }, [campaigns, campaignId]);
   const s = settings.data;
   const google = s?.leadSearchProvider === "google";
   return (
@@ -94,7 +93,7 @@ export function FindLeads({
                 what: String(fields.get("what") || ""),
                 where: String(fields.get("where") || ""),
                 limit: Number(fields.get("limit") || 20),
-                campaignId: campaignId || null,
+                campaignId: campaignId && campaignId !== "none" ? campaignId : null,
               },
             });
             setLast(result);
@@ -133,8 +132,11 @@ export function FindLeads({
           </label>
           <label>
             Offer
-            <select value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
-              <option value="">No offer (add only, no automation)</option>
+            <select required value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
+              <option value="" disabled>
+                Choose the offer for these leads…
+              </option>
+              <option value="none">No offer (add only, no research or drafts)</option>
               {campaigns.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}

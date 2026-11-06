@@ -1286,3 +1286,19 @@ details.entry-panel:not([open]) {
   text-decoration: underline;
   cursor: pointer;
 }
+.bulk-bar {
+  margin: 0 0 16px;
+}
+.bulk-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-rule);
+  border-radius: 8px;
+}
+th.pick,
+td.pick {
+  width: 2.25rem;
+}
