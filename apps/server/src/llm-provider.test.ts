@@ -3,7 +3,10 @@ import { salesConfig } from "./config";
 import {
   buildDraftRequest,
   parseDraftResponse,
+  backoffMs,
+  limitsFor,
   providerFor,
+  providersFor,
   retryAt,
   quotaWait,
   normalizeProviderResponse,
@@ -106,7 +109,7 @@ test("Retry-After supports seconds, dates and quota reset durations", () => {
 });
 test("quota decisions enforce pacing, rolling tokens/day and persistent cooldown", () => {
   const now = new Date("2026-11-05T10:00:00Z"),
-    c = salesConfig({});
+    c = { rpm: 1, rpd: 20, tpm: 8000, tpd: 100000 };
   const recent = [{ createdAt: new Date(now.getTime() - 10000), quotaTokens: 7000 }];
   expect(quotaWait(recent, c, now, 7000, null)?.getTime()).toBe(now.getTime() + 50000);
   expect(quotaWait([], c, now, 7000, new Date(now.getTime() + 120000))?.getTime()).toBe(
@@ -124,7 +127,39 @@ test("quota decisions enforce pacing, rolling tokens/day and persistent cooldown
       null,
     )!.getTime(),
   ).toBeGreaterThan(now.getTime() + 22 * 3600000);
-  expect(() => quotaWait([], salesConfig({ LLM_TPM: 100 }), now, 7000, null)).toThrow();
+  expect(() => quotaWait([], { ...c, tpm: 100 }, now, 7000, null)).toThrow();
+});
+test("both keys rotate providers, primary first; LLM_ROTATE=false keeps one", () => {
+  const both = { GROQ_API_KEY: "g", GEMINI_API_KEY: "m" };
+  expect(providersFor(salesConfig(both)).map((p) => p.provider)).toEqual(["groq", "gemini"]);
+  expect(
+    providersFor(salesConfig({ ...both, LLM_PROVIDER: "gemini" })).map((p) => [
+      p.provider,
+      p.model,
+    ]),
+  ).toEqual([
+    ["gemini", "gemini-3.5-flash-lite"],
+    ["groq", "openai/gpt-oss-20b"],
+  ]);
+  expect(providersFor(salesConfig({ ...both, LLM_ROTATE: "false" }))).toHaveLength(1);
+  expect(providersFor(salesConfig({ GEMINI_API_KEY: "m" })).map((p) => p.provider)).toEqual([
+    "gemini",
+  ]);
+  // LLM_MODEL only applies to the primary provider.
+  expect(
+    providersFor(salesConfig({ ...both, LLM_MODEL: "openai/gpt-oss-120b" })).map((p) => p.model),
+  ).toEqual(["openai/gpt-oss-120b", "gemini-3.5-flash-lite"]);
+  expect(limitsFor(salesConfig({}), "groq")).toEqual({
+    rpm: 20,
+    rpd: 800,
+    tpm: 8000,
+    tpd: 180000,
+  });
+});
+test("rate-limit backoff starts at 2 minutes, doubles and caps at 30", () => {
+  expect([0, 1, 2, 3, 4, 10].map(backoffMs)).toEqual([
+    120000, 240000, 480000, 960000, 1800000, 1800000,
+  ]);
 });
 
 test("native Gemini object/chunked responses preserve final text and account for thinking tokens", () => {

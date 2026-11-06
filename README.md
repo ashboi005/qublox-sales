@@ -70,14 +70,11 @@ For Docker, set these in root `.env`; for local development, use `apps/server/.e
 LLM_PROVIDER=groq
 GROQ_API_KEY=your-key
 LLM_MODEL=openai/gpt-oss-20b
-LLM_RPM=1
-LLM_RPD=20
-LLM_TPM=8000
-LLM_TPD=100000
+LLM_ROTATE=true
 LLM_MONTHLY_BUDGET_USD=1
 ```
 
-For Gemini, set `LLM_PROVIDER=gemini`, `GEMINI_API_KEY=your-key`, and `LLM_MODEL=gemini-3.5-flash-lite`. Restart API and worker. Keys stay on the server. Set allowances at or below your actual account quotas. Queued work waits for capacity; use **Cancel queued work** to write manually during a long cooldown.
+Set both `GROQ_API_KEY` and `GEMINI_API_KEY` and drafts alternate between the two; when one is rate limited or down, the other takes over. `LLM_PROVIDER` picks which goes first and `LLM_ROTATE=false` uses only that one. Restart API and worker. Keys stay on the server. Set allowances at or below your actual account quotas. Queued work waits for capacity; use **Cancel queued work** to write manually during a long cooldown.
 
 Ten prospects per working day plus regenerations is about 300 model calls/month. At an illustrative 2,000 input and 800 output tokens per call, paid list-price estimates are about $0.12/month on Groq 20B or $0.78/month on Gemini 3.5 Flash-Lite. Eligible free-tier calls may cost $0. The app estimates at paid prices regardless of account tier and cannot establish your provider bill or guarantee a spending cap. Scraping makes no LLM calls. Provider access and live output quality remain untested without your key; automated tests spend no credits.
 

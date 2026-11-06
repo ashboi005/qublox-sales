@@ -1,4 +1,4 @@
-import { LlmDeferred, providerFor } from "./llm-provider";
+import { aiConfigured, LlmDeferred, providerFor } from "./llm-provider";
 import { and, asc, eq, lt, lte, or, sql } from "drizzle-orm";
 import type { Database } from "@qublox-sales/db";
 import { campaigns, jobs, prospects } from "@qublox-sales/db/schema/sales";
@@ -57,7 +57,7 @@ type Dependencies = {
     p: ProspectRow,
     campaign: typeof campaigns.$inferSelect,
     job: ClaimedJob,
-  ) => Promise<DraftInput>;
+  ) => Promise<DraftInput & { model?: string }>;
 };
 
 export async function processJob(
@@ -75,7 +75,7 @@ export async function processJob(
     if (!p || p.version !== job.inputVersion)
       throw new Error("The prospect changed before the job started.");
     let research: Research | undefined,
-      draft: DraftInput | undefined,
+      draft: (DraftInput & { model?: string }) | undefined,
       campaignVersion: number | undefined;
     if (job.kind === "research" && !p.website)
       throw new Error("This business has no website to research. Add evidence manually.");
@@ -152,13 +152,13 @@ export async function processJob(
           draftBody: draft.body,
           draftEvidenceIds: draft.evidenceIds,
           draftCampaignVersion: campaignVersion,
-          draftModel: `${config.LLM_PROVIDER} / ${providerFor(config).model}`,
+          draftModel: draft.model || `${config.LLM_PROVIDER} / ${providerFor(config).model}`,
           draftStatus: "complete",
           status: draft.score ? "review" : "skipped",
         });
       // Research flows straight into drafting when an offer and AI key are set.
       const chain = Boolean(
-        research && config.AUTO_PIPELINE && campaign && providerFor(config).key,
+        research && config.AUTO_PIPELINE && campaign && aiConfigured(config),
       );
       if (chain) values.draftStatus = "queued";
       await tx.update(prospects).set(values).where(eq(prospects.id, p.id));

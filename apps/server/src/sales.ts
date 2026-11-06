@@ -1,13 +1,14 @@
 import { emailOutbox } from "@qublox-sales/db/schema/delivery";
 import { createMailboxService, type Viewer } from "./mailboxes";
 import { contactCapacity } from "./contact-cap";
-import { providerFor } from "./llm-provider";
+import { aiConfigured, limitsFor, providerFor, providersFor } from "./llm-provider";
 import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql, sum } from "drizzle-orm";
 import type { Database } from "@qublox-sales/db";
 import {
   activities,
   campaigns,
   jobs,
+  llmProviderState,
   llmUsage,
   prospects,
   suppressions,
@@ -334,7 +335,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
           config.AUTO_PIPELINE && p.campaignId
             ? p.website
               ? ("research" as const)
-              : p.evidence.length && providerFor(config).key
+              : p.evidence.length && aiConfigured(config)
                 ? ("draft" as const)
                 : null
             : null;
@@ -684,7 +685,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
             "NO_WEBSITE",
             "This business has no website to research. Draft from its listing or add an observation.",
           );
-        if (kind === "draft" && !providerFor(config).key)
+        if (kind === "draft" && !aiConfigured(config))
           throw new AppError(
             422,
             "AI_NOT_CONFIGURED",
@@ -828,13 +829,30 @@ export function createSalesService(db: Database, config: SalesConfig) {
         .from(llmUsage)
         .where(gte(llmUsage.createdAt, month));
       return {
-        aiConfigured: Boolean(providerFor(config).key),
+        aiConfigured: aiConfigured(config),
         provider: config.LLM_PROVIDER,
         model: providerFor(config).model,
-        requestsPerMinute: config.LLM_RPM,
-        requestsPerDay: config.LLM_RPD,
-        tokensPerMinute: config.LLM_TPM,
-        tokensPerDay: config.LLM_TPD,
+        aiProviders: await Promise.all(
+          providersFor(config).map(async (p) => {
+            const limits = limitsFor(config, p.provider);
+            const [state] = await db
+              .select()
+              .from(llmProviderState)
+              .where(eq(llmProviderState.provider, p.provider));
+            return {
+              provider: p.provider,
+              model: p.model,
+              requestsPerMinute: limits.rpm,
+              requestsPerDay: limits.rpd,
+              tokensPerMinute: limits.tpm,
+              tokensPerDay: limits.tpd,
+              pausedUntil:
+                state && state.blockedUntil.getTime() > Date.now()
+                  ? state.blockedUntil.toISOString()
+                  : null,
+            };
+          }),
+        ),
         monthlyBudget: config.LLM_MONTHLY_BUDGET_USD,
         monthSpent: Number(usage?.value || 0) / 1e6,
         dailyLimit: config.DAILY_CONTACT_LIMIT,

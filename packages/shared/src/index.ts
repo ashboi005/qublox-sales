@@ -286,11 +286,21 @@ export type MailboxSummary = z.infer<typeof mailboxSchema>;
 export const settingsSchema = z.object({
   aiConfigured: z.boolean(),
   provider: z.enum(["groq", "gemini"]),
-  requestsPerMinute: z.number(),
-  requestsPerDay: z.number(),
-  tokensPerMinute: z.number(),
-  tokensPerDay: z.number(),
   model: z.string(),
+  // Every AI provider in use, in rotation order, with its allowance and any active pause.
+  aiProviders: z
+    .array(
+      z.object({
+        provider: z.enum(["groq", "gemini"]),
+        model: z.string(),
+        requestsPerMinute: z.number(),
+        requestsPerDay: z.number(),
+        tokensPerMinute: z.number(),
+        tokensPerDay: z.number(),
+        pausedUntil: z.string().nullable(),
+      }),
+    )
+    .default([]),
   monthlyBudget: z.number(),
   monthSpent: z.number(),
   dailyLimit: z.number(),

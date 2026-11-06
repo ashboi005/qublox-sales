@@ -18,10 +18,16 @@ const rates: Record<string, [number, number]> = {
   "gemini-3.1-flash-lite": [0.25, 1.5],
   "gemini-3.5-flash-lite": [0.3, 2.5],
 };
-export function providerFor(config: SalesConfig) {
-  const provider = config.LLM_PROVIDER;
+export type ProviderName = "groq" | "gemini";
+const defaultModel: Record<ProviderName, string> = {
+  groq: "openai/gpt-oss-20b",
+  gemini: "gemini-3.5-flash-lite",
+};
+// LLM_MODEL applies to the primary provider (LLM_PROVIDER); the other uses its default.
+export function providerFor(config: SalesConfig, name: ProviderName = config.LLM_PROVIDER) {
+  const provider = name;
   const model =
-    config.LLM_MODEL || (provider === "groq" ? "openai/gpt-oss-20b" : "gemini-3.5-flash-lite");
+    name === config.LLM_PROVIDER && config.LLM_MODEL ? config.LLM_MODEL : defaultModel[name];
   return {
     provider,
     model,
@@ -32,6 +38,41 @@ export function providerFor(config: SalesConfig) {
         : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     rates: rates[model]!,
   };
+}
+// Every provider with a key, primary first. Without LLM_ROTATE only the primary is used.
+export function providersFor(config: SalesConfig) {
+  const names: ProviderName[] = [
+    config.LLM_PROVIDER,
+    config.LLM_PROVIDER === "groq" ? "gemini" : "groq",
+  ];
+  return names
+    .filter((_, i) => i === 0 || config.LLM_ROTATE)
+    .map((name) => providerFor(config, name))
+    .filter((p) => p.key);
+}
+export function aiConfigured(config: SalesConfig) {
+  return providersFor(config).length > 0;
+}
+export type Limits = { rpm: number; rpd: number; tpm: number; tpd: number };
+export function limitsFor(config: SalesConfig, name: ProviderName): Limits {
+  return name === "groq"
+    ? { rpm: config.GROQ_RPM, rpd: config.GROQ_RPD, tpm: config.GROQ_TPM, tpd: config.GROQ_TPD }
+    : {
+        rpm: config.GEMINI_RPM,
+        rpd: config.GEMINI_RPD,
+        tpm: config.GEMINI_TPM,
+        tpd: config.GEMINI_TPD,
+      };
+}
+// Roughly 4 bytes per token for English and about 3 for Indian scripts in UTF-8, so a third
+// of the bytes stays on the safe side. Provider rate-limit headers remain authoritative.
+export function inputTokens(messages: unknown) {
+  return Math.ceil(Buffer.byteLength(JSON.stringify(messages)) / 3) + 256;
+}
+// A 429 pauses that provider for 2 minutes, doubling with each repeat (max 30 minutes),
+// unless the provider asks for longer.
+export function backoffMs(recentRejections: number) {
+  return Math.min(120000 * 2 ** Math.max(0, recentRejections), 30 * 60000);
 }
 export type Provider = ReturnType<typeof providerFor>;
 export const MAX_OUTPUT = 1600;
@@ -297,12 +338,12 @@ export class LlmDeferred extends Error {
 }
 export function quotaWait(
   rows: { createdAt: Date; quotaTokens: number }[],
-  c: SalesConfig,
+  c: Limits,
   now: Date,
   tokens: number,
   blocked: Date | null,
 ) {
-  if (tokens > c.LLM_TPM || tokens > c.LLM_TPD)
+  if (tokens > c.tpm || tokens > c.tpd)
     throw new Error(
       "AI token limit is below this bounded request size. Increase the configured allowance or shorten the evidence.",
     );
@@ -313,7 +354,7 @@ export function quotaWait(
   if (rows.length)
     wait = Math.max(
       wait,
-      Math.max(...rows.map((r) => r.createdAt.getTime())) + Math.ceil(60000 / c.LLM_RPM),
+      Math.max(...rows.map((r) => r.createdAt.getTime())) + Math.ceil(60000 / c.rpm),
     );
   const windowWait = (items: typeof rows, window: number, maxCount: number, maxTokens: number) => {
     let count = items.length,
@@ -325,7 +366,7 @@ export function quotaWait(
       total -= row.quotaTokens;
     }
   };
-  windowWait(minute, 60000, c.LLM_RPM, c.LLM_TPM);
-  windowWait(day, 86400000, c.LLM_RPD, c.LLM_TPD);
+  windowWait(minute, 60000, c.rpm, c.tpm);
+  windowWait(day, 86400000, c.rpd, c.tpd);
   return wait > at ? new Date(wait) : null;
 }

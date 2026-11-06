@@ -4,6 +4,7 @@ import { GmailSender } from "@/components/gmail-sender";
 import { AccountPassword } from "@/components/account-password";
 import { Workspace, Loading, Notice, Status } from "@/components/workspace";
 import { useResource } from "@/lib/use-resource";
+import { time } from "@/lib/api";
 
 export default function SettingsPage() {
   return (
@@ -83,7 +84,7 @@ function Settings() {
                 <Status value={s.aiConfigured ? "configured" : "not connected"} />
                 <p>
                   {s.aiConfigured
-                    ? `${s.provider === "groq" ? "Groq" : "Gemini"} · ${s.model}. Every draft still needs your approval.`
+                    ? `${s.aiProviders.map((p) => `${p.provider === "groq" ? "Groq" : "Gemini"} · ${p.model}`).join(" and ")}.${s.aiProviders.length > 1 ? " Drafts alternate between them, and each covers for the other when it is busy." : ""} Every draft still needs your approval.`
                     : "Manual drafting is available. To enable generation, the server administrator must set a Groq or Gemini API key and select the provider."}
                 </p>
               </dd>
@@ -102,13 +103,19 @@ function Settings() {
             <div>
               <dt>AI request pacing</dt>
               <dd>
-                {s.requestsPerMinute}/minute · {s.requestsPerDay}/rolling 24 hours
+                {s.aiProviders.length === 0 && "No AI provider connected."}
+                {s.aiProviders.map((p) => (
+                  <span key={p.provider} className="pacing-row">
+                    <strong>{p.provider === "groq" ? "Groq" : "Gemini"}</strong>{" "}
+                    {p.requestsPerMinute}/minute · {p.requestsPerDay}/rolling 24 hours ·{" "}
+                    {p.tokensPerMinute.toLocaleString()} tokens/minute
+                    {p.pausedUntil && ` · paused until ${time(p.pausedUntil)}`}
+                  </span>
+                ))}
                 <p>
-                  {s.tokensPerMinute.toLocaleString()} tokens/minute and{" "}
-                  {s.tokensPerDay.toLocaleString()} tokens/rolling 24 hours, reserved
-                  conservatively. Drafts wait when a limit is reached. Provider cooldowns survive
-                  worker restarts. Account quotas and usage from other apps can be lower than these
-                  settings.
+                  Drafts wait when every provider is at its limit. A rate-limit reply pauses that
+                  provider for 2 minutes, doubling if it repeats, while the other one carries on.
+                  Account quotas and usage from other apps can be lower than these settings.
                 </p>
               </dd>
             </div>

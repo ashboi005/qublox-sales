@@ -1251,3 +1251,4 @@ details.entry-panel:not([open]) {
     gap: var(--space-xs);
   }
 }
+.pacing-row { display: block; }

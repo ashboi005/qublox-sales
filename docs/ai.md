@@ -1,6 +1,6 @@
 # AI provider choice and usage
 
-Researched 5 November 2026. Merge is removed from the active application. This app calls one selected provider directly; it never falls back to a second provider or upgrades models automatically. Manual research/drafting still works without a key.
+Researched 5 November 2026, rotation added 6 November 2026. Merge is removed from the active application. With both a Groq and a Gemini key the app alternates between them and uses each as the other's fallback (see **Rotation and fallback** below). It never upgrades models automatically. Manual research/drafting still works without a key.
 
 ## Recommendation
 
@@ -43,22 +43,42 @@ LLM_PROVIDER=groq
 GROQ_API_KEY=your-key
 GEMINI_API_KEY=
 LLM_MODEL=openai/gpt-oss-20b
-LLM_RPM=1
-LLM_RPD=20
-LLM_TPM=8000
-LLM_TPD=100000
+LLM_ROTATE=true
 LLM_MONTHLY_BUDGET_USD=1
+# Optional overrides; the defaults below already sit under each free tier.
+GROQ_RPM=20
+GROQ_RPD=800
+GROQ_TPM=8000
+GROQ_TPD=180000
+GEMINI_RPM=10
+GEMINI_RPD=250
+GEMINI_TPM=200000
+GEMINI_TPD=2000000
 ```
 
+The old `LLM_RPM`, `LLM_RPD`, `LLM_TPM` and `LLM_TPD` settings are no longer read and can be deleted.
+
 To switch, set `LLM_PROVIDER=gemini`, `GEMINI_API_KEY=your-key`, and `LLM_MODEL=gemini-3.5-flash-lite`. An empty `LLM_MODEL` selects that provider's default. A model belonging to the wrong provider fails configuration validation. Keys stay on the server. Restart/recreate API and worker after configuration changes. Old `MERGE_*` variables are ignored and can be removed from your private configuration.
+
+## Rotation and fallback
+
+With both keys set, each AI call goes to whichever provider was used least recently and has capacity right now, so drafts alternate Groq, Gemini, Groq. `LLM_PROVIDER` decides who goes first and `LLM_MODEL` applies to that provider only; the other uses its default model. `LLM_ROTATE=false` turns this off.
+
+- **Rate limited (HTTP 429):** that provider pauses for 2 minutes, doubling for each further 429 within 30 minutes (4, 8, 16, capped at 30), or longer if the provider's `Retry-After` asks. The same draft is sent to the other provider immediately.
+- **Outage (5xx, timeout, network error):** that provider pauses for 2 minutes and the other one is tried. The failed request keeps its cost reservation because it may have been billed.
+- **Configuration rejection (400, 401, 403, 404, 422):** the other provider is tried; with no other provider the job fails with the HTTP status so the key or model can be fixed.
+- **Unusable answer** (bad JSON, citing evidence that was not supplied): the other provider gets one try before the draft is marked failed.
+- **Both busy:** the job waits until the earliest provider frees up. Waiting for local pacing does not use up a retry; a real provider rejection does, three at most.
+
+Token use is estimated as a third of the request's UTF-8 bytes plus overhead, then corrected to the provider's reported count after each call. Settings → AI request pacing lists each provider's allowance and any active pause.
 
 ## Limits and recovery
 
 Groq's published free-plan summary for GPT-OSS 20B currently shows 30 RPM, 1,000 RPD, 8,000 TPM and 200,000 TPD. These are shared at organization level and exceptions exist: check your [Groq limits](https://console.groq.com/settings/limits). Google's effective limits are project-specific and must be read in [AI Studio](https://aistudio.google.com/rate-limit); Google does not promise one universal free-tier quota. Sources: [Groq limit semantics and headers](https://console.groq.com/docs/rate-limits), [Google limits](https://ai.google.dev/gemini-api/docs/rate-limits).
 
-The app's defaults are conservative local allowances, not claimed account quotas. Set them **at or below your actual console values**, allowing for other applications sharing that organization/project. Local request/token checks use rolling minutes and rolling 24 hours, rather than assuming a provider's daily reset timezone. Input tokens are reserved using UTF-8 bytes plus protocol overhead; output uses its full cap. This intentionally overcounts ordinary text. Shared PostgreSQL admission locks coordinate workers; attempts and cooldowns survive restarts. Token estimates cannot replace the provider's tokenizer or account-wide meter.
+The app's defaults are conservative local allowances, not claimed account quotas. Set them **at or below your actual console values**, allowing for other applications sharing that organization/project. Local request/token checks use rolling minutes and rolling 24 hours, rather than assuming a provider's daily reset timezone. Input tokens are reserved as a third of the UTF-8 bytes plus overhead; output uses its full cap until the provider reports actual usage. Shared PostgreSQL admission locks coordinate workers; attempts and cooldowns survive restarts. Token estimates cannot replace the provider's tokenizer or account-wide meter.
 
-The worker queues calls until local capacity is available. A 429 honors `Retry-After` (seconds or HTTP date) and Groq reset headers; missing guidance uses at least a one-minute pause. Three explicit provider rejections exhaust that job's attempts. Local waiting does not consume attempts. Use **Cancel queued work** to continue manually during a long wait. Timeouts, network failures, 5xx responses and malformed drafts are not automatically retried; an ambiguous request may already have been billed. There is no key rotation to bypass quotas.
+The worker queues calls until local capacity is available. A 429 honors `Retry-After` (seconds or HTTP date) and Groq reset headers; missing guidance uses at least a one-minute pause. Three explicit provider rejections exhaust that job's attempts. Local waiting does not consume attempts. Use **Cancel queued work** to continue manually during a long wait. Timeouts, network failures, 5xx responses and malformed drafts are handed to the other provider when one is configured; an ambiguous request may already have been billed. There is no rotation of several keys for the same provider to get around a quota.
 
 The monthly ledger estimates at paid list prices even on a free tier. Unknown outcomes retain a conservative reservation; known 429 rejections release cost but retain rate-limit accounting. Historical Merge estimates remain in the same month's ledger. It is a local admission allowance, not an invoice or guaranteed provider spending cap. Configure available provider-side spending controls separately, and review prices when changing models.
 

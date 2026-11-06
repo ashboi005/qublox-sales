@@ -833,6 +833,161 @@ test("definitive provider rejection releases cost but retains request allowance"
   expect(row!.quotaTokens).toBeGreaterThan(0);
 });
 
+const geminiResponse = () =>
+  Response.json({
+    candidates: [
+      {
+        content: {
+          parts: [
+            {
+              text: JSON.stringify({
+                score: 0,
+                rationale: "No signal",
+                evidenceIds: [],
+                subject: "",
+                body: "",
+              }),
+            },
+          ],
+        },
+        finishReason: "STOP",
+      },
+    ],
+    usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 100 },
+  });
+const bothProviders = () =>
+  salesConfig({ ...config, GROQ_API_KEY: "fake-groq", GEMINI_API_KEY: "fake-gemini" });
+const providerOf = (url: string) => (url.includes("groq.com") ? "groq" : "gemini");
+
+test("with both keys, drafts alternate between Groq and Gemini", async () => {
+  await db.delete(llmUsage);
+  await db.delete(llmProviderState);
+  const c = bothProviders();
+  const used: string[] = [];
+  const fetcher = async (url: string) => {
+    used.push(providerOf(url));
+    return url.includes("groq.com") ? aiResponse() : geminiResponse();
+  };
+  const first = await generateDraft(db, c, crypto.randomUUID(), aiProspect, aiCampaign, fetcher);
+  const second = await generateDraft(db, c, crypto.randomUUID(), aiProspect, aiCampaign, fetcher);
+  expect(used).toEqual(["groq", "gemini"]);
+  expect(first.model).toBe("groq / openai/gpt-oss-20b");
+  expect(second.model).toBe("gemini / gemini-3.5-flash-lite");
+  // Groq is paced (20/minute = one every 3s) and Gemini (10/minute) too: the next waits.
+  await expect(
+    generateDraft(db, c, crypto.randomUUID(), aiProspect, aiCampaign, fetcher),
+  ).rejects.toMatchObject({ rejected: false });
+});
+
+test("a Groq rate limit backs off 2 minutes and the same draft falls back to Gemini", async () => {
+  await db.delete(llmUsage);
+  await db.delete(llmProviderState);
+  const used: string[] = [];
+  const draft = await generateDraft(
+    db,
+    bothProviders(),
+    crypto.randomUUID(),
+    aiProspect,
+    aiCampaign,
+    async (url) => {
+      used.push(providerOf(url));
+      return url.includes("groq.com")
+        ? new Response("slow down", { status: 429 })
+        : geminiResponse();
+    },
+  );
+  expect(used).toEqual(["groq", "gemini"]);
+  expect(draft.model).toStartWith("gemini");
+  const [groq] = await db
+    .select()
+    .from(llmProviderState)
+    .where(eq(llmProviderState.provider, "groq"));
+  expect(groq!.blockedUntil.getTime()).toBeGreaterThan(Date.now() + 110000);
+  expect(groq!.blockedUntil.getTime()).toBeLessThan(Date.now() + 125000);
+  // A second 429 inside 30 minutes doubles the pause.
+  await db.update(llmProviderState).set({ blockedUntil: new Date(0) });
+  await db
+    .update(llmUsage)
+    .set({ createdAt: new Date(Date.now() - 20000) })
+    .where(eq(llmUsage.provider, "groq"));
+  await db
+    .update(llmUsage)
+    .set({ createdAt: new Date(Date.now() - 10000) })
+    .where(eq(llmUsage.provider, "gemini"));
+  await generateDraft(
+    db,
+    bothProviders(),
+    crypto.randomUUID(),
+    aiProspect,
+    aiCampaign,
+    async (url) =>
+      url.includes("groq.com") ? new Response("slow down", { status: 429 }) : geminiResponse(),
+  );
+  const [again] = await db
+    .select()
+    .from(llmProviderState)
+    .where(eq(llmProviderState.provider, "groq"));
+  expect(again!.blockedUntil.getTime()).toBeGreaterThan(Date.now() + 230000);
+});
+
+test("an outage or unusable answer on one provider is retried on the other", async () => {
+  await db.delete(llmUsage);
+  await db.delete(llmProviderState);
+  const used: string[] = [];
+  const outage = await generateDraft(
+    db,
+    bothProviders(),
+    crypto.randomUUID(),
+    aiProspect,
+    aiCampaign,
+    async (url) => {
+      used.push(providerOf(url));
+      if (url.includes("groq.com")) throw new Error("network down");
+      return geminiResponse();
+    },
+  );
+  expect(used).toEqual(["groq", "gemini"]);
+  expect(outage.model).toStartWith("gemini");
+  // The ambiguous Groq request keeps its reservation; Gemini is metered.
+  const states = (await db.select().from(llmUsage)).map((r) => `${r.provider}:${r.state}`).sort();
+  expect(states).toEqual(["gemini:estimated", "groq:reserved"]);
+
+  await db.delete(llmUsage);
+  await db.delete(llmProviderState);
+  used.length = 0;
+  const repaired = await generateDraft(
+    db,
+    bothProviders(),
+    crypto.randomUUID(),
+    aiProspect,
+    aiCampaign,
+    async (url) => {
+      used.push(providerOf(url));
+      return url.includes("groq.com")
+        ? Response.json({ choices: [{ message: { content: "not json" }, finish_reason: "stop" }] })
+        : geminiResponse();
+    },
+  );
+  expect(used).toEqual(["groq", "gemini"]);
+  expect(repaired.model).toStartWith("gemini");
+
+  // When both are rate limited the job is deferred to the earliest free provider.
+  await db.delete(llmUsage);
+  await db.delete(llmProviderState);
+  await expect(
+    generateDraft(
+      db,
+      bothProviders(),
+      crypto.randomUUID(),
+      aiProspect,
+      aiCampaign,
+      async () => new Response("busy", { status: 429, headers: { "Retry-After": "300" } }),
+    ),
+  ).rejects.toMatchObject({ rejected: true });
+  const pauses = await db.select().from(llmProviderState);
+  expect(pauses).toHaveLength(2);
+});
+
 test("teammates connect their own Gmail; the App Password is checked, encrypted and never returned", async () => {
   const bad = await request<{ error: { code: string; message: string } }>(
     "/api/mailboxes/me",
@@ -1078,7 +1233,7 @@ test("polish with AI suggests a cleaner offer without saving it, through the pac
     db,
     auth,
     origin,
-    config: salesConfig({ ...config, GROQ_API_KEY: "fake-key", LLM_RPM: 60 }),
+    config: salesConfig({ ...config, GROQ_API_KEY: "fake-key", GROQ_RPM: 60 }),
     fetchModel: async (_url, init) => {
       const sent = JSON.parse(String(init.body));
       expect(sent.messages[0].content).toContain("Never add clients");

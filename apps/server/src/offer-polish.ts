@@ -3,7 +3,7 @@ import type { Database } from "@qublox-sales/db";
 import { campaignInput, cleanDraftText, type CampaignInput } from "@qublox-sales/shared";
 import type { SalesConfig } from "./config";
 import { callModel } from "./llm";
-import { MAX_OUTPUT, providerFor, responseSchema } from "./llm-provider";
+import { MAX_OUTPUT, type Provider, responseSchema } from "./llm-provider";
 
 const suggestionSchema = z.object({
   name: z.string(),
@@ -42,8 +42,7 @@ export async function polishOffer(
   draft: CampaignInput,
   fetcher?: (url: string, init: RequestInit) => Promise<Response>,
 ) {
-  const selected = providerFor(config);
-  const request = {
+  const build = (selected: Provider) => ({
     model: selected.model,
     messages: [
       { role: "system", content: polishInstructions(config.COMPANY_NAME) },
@@ -59,12 +58,12 @@ export async function polishOffer(
     response_format: { type: "json_object" },
     reasoning_effort: selected.provider === "groq" ? "low" : "minimal",
     ...(selected.provider === "groq" ? { include_reasoning: false } : {}),
-  };
-  const raw = await callModel(
+  });
+  const { raw } = await callModel(
     db,
     config,
     `polish:${crypto.randomUUID()}`,
-    request as Parameters<typeof callModel>[3],
+    build,
     geminiSchema,
     fetcher,
   );

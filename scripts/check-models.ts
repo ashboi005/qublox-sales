@@ -59,6 +59,8 @@ try {
       ...process.env,
       ...privateSettings,
       LLM_PROVIDER: provider,
+      // Check each provider on its own, without rotating to the other.
+      LLM_ROTATE: "false",
       LLM_MODEL: process.env.MODEL_CHECK_MODEL || "",
     });
     const selected = providerFor(config);

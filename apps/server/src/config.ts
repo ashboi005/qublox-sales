@@ -6,10 +6,25 @@ const schema = z
     GROQ_API_KEY: z.string().default(""),
     GEMINI_API_KEY: z.string().default(""),
     LLM_MODEL: z.string().default(""),
-    LLM_RPM: z.coerce.number().int().min(1).max(60).default(1),
-    LLM_RPD: z.coerce.number().int().min(1).max(10000).default(20),
-    LLM_TPM: z.coerce.number().int().min(1).max(1000000).default(8000),
-    LLM_TPD: z.coerce.number().int().min(1).max(10000000).default(100000),
+    // With both keys set, drafts alternate between Groq and Gemini and each covers for the
+    // other when it is rate limited or failing. "false" uses only LLM_PROVIDER.
+    LLM_ROTATE: z
+      .preprocess(
+        (v) => (v === true ? "true" : v === false ? "false" : v),
+        z.enum(["true", "false"]).default("true"),
+      )
+      .transform((v) => v === "true"),
+    // Per-provider allowances, kept under each free tier. A 429 still backs off on its own.
+    // Groq GPT-OSS 20B free plan: 30 RPM, 1,000 RPD, 8,000 TPM, 200,000 TPD.
+    GROQ_RPM: z.coerce.number().int().min(1).max(1000).default(20),
+    GROQ_RPD: z.coerce.number().int().min(1).max(100000).default(800),
+    GROQ_TPM: z.coerce.number().int().min(1).max(10000000).default(8000),
+    GROQ_TPD: z.coerce.number().int().min(1).max(100000000).default(180000),
+    // Google sets Gemini free-tier limits per project; read yours in AI Studio.
+    GEMINI_RPM: z.coerce.number().int().min(1).max(1000).default(10),
+    GEMINI_RPD: z.coerce.number().int().min(1).max(100000).default(250),
+    GEMINI_TPM: z.coerce.number().int().min(1).max(10000000).default(200000),
+    GEMINI_TPD: z.coerce.number().int().min(1).max(100000000).default(2000000),
     LLM_MONTHLY_BUDGET_USD: z.coerce.number().min(0).max(100).default(1),
     // New leads with an offer are researched, then drafted, without clicks. Approval stays human.
     AUTO_PIPELINE: z
