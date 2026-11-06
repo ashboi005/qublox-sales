@@ -52,7 +52,7 @@ async function finish(
     .update(emailOutbox)
     .set({ status: "sent", sentAt: now, messageId, lastError: "" })
     .where(eq(emailOutbox.id, row.id));
-  const terminal = ["suppressed", "replied", "closed"].includes(p.status);
+  const terminal = ["suppressed", "replied", "meeting", "closed"].includes(p.status);
   const [updated] = await tx
     .update(prospects)
     .set({

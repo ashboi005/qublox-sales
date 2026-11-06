@@ -365,6 +365,7 @@ tbody tr:hover {
 }
 .status-approved,
 .status-replied,
+.status-meeting,
 .status-complete {
   color: var(--color-success);
   border-color: color-mix(in oklab, var(--color-success) 40%, var(--color-rule));
@@ -797,4 +798,18 @@ tbody tr:hover {
   align-items: center;
   gap: var(--space-sm);
   flex-wrap: wrap;
+}
+
+.status-meeting {
+  font-weight: 600;
+}
+.pipeline-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+.pipeline-tabs button[aria-pressed="true"] {
+  border-color: var(--color-ink);
+  font-weight: 600;
 }

@@ -28,7 +28,7 @@ export async function claimJob(db: Database) {
     const p = await lockProspect(tx, job.prospectId);
     if (
       p.version !== job.inputVersion ||
-      ["suppressed", "contacted", "replied", "closed"].includes(p.status)
+      ["suppressed", "contacted", "replied", "meeting", "closed"].includes(p.status)
     ) {
       await tx.update(jobs).set({ status: "cancelled" }).where(eq(jobs.id, job.id));
       return null;

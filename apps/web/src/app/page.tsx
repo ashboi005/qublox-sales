@@ -66,6 +66,10 @@ function Prospects() {
           [overview.data?.review, "To review"],
           [overview.data?.approved, "Approved"],
           [
+            overview.data ? overview.data.replied + overview.data.meetings : undefined,
+            "Replied / meetings",
+          ],
+          [
             overview.data
               ? `${overview.data.contactedToday} / ${overview.data.dailyLimit}`
               : undefined,
@@ -93,6 +97,31 @@ function Prospects() {
       )}
       <MapsImport campaigns={offers.data || []} onImported={reload} />
       <BulkEmailQueue records={list.data?.data || []} onQueued={reload} />
+      <div className="pipeline-tabs" role="group" aria-label="Pipeline stage">
+        {(
+          [
+            ["", "All"],
+            ["review", "To review"],
+            ["approved", "Approved"],
+            ["contacted", "Contacted"],
+            ["replied", "Replied"],
+            ["meeting", "Meeting set"],
+            ["closed", "Closed"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={label}
+            type="button"
+            aria-pressed={status === value}
+            onClick={() => {
+              setStatus(value);
+              setPage(1);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="toolbar">
         <form
           className="filters"
@@ -188,6 +217,7 @@ function Prospects() {
                   <th>Channel</th>
                   <th>Signal</th>
                   <th>Status</th>
+                  <th>Last contact</th>
                   <th>Updated</th>
                   <th>
                     <span className="visually-hidden">Review</span>
@@ -215,6 +245,12 @@ function Prospects() {
                     <td>{p.score === null ? "—" : `${p.score} / 3`}</td>
                     <td>
                       <Status value={p.status} />
+                    </td>
+                    <td className="muted">
+                      {date(p.contactedAt)}
+                      {p.followUpAt && p.status === "contacted" && (
+                        <small>Follow up {date(p.followUpAt)}</small>
+                      )}
                     </td>
                     <td className="muted">{date(p.updatedAt)}</td>
                     <td>

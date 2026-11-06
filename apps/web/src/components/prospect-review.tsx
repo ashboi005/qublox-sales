@@ -21,9 +21,17 @@ import { useResource } from "@/lib/use-resource";
 import { campaignsSchema } from "./prospect-entry";
 import { External, Loading, Notice, Status } from "./workspace";
 
-type Action = "approve" | "contacted" | "replied" | "close" | "skip" | "suppress" | "followed_up";
+type Action =
+  | "approve"
+  | "contacted"
+  | "replied"
+  | "meeting"
+  | "close"
+  | "skip"
+  | "suppress"
+  | "followed_up";
 type Write = (suffix: string, body: unknown, method?: string, success?: string) => Promise<boolean>;
-const terminal = new Set(["contacted", "replied", "closed", "suppressed"]);
+const terminal = new Set(["contacted", "replied", "meeting", "closed", "suppressed"]);
 const active = (p: Prospect) =>
   !terminal.has(p.status) &&
   [p.researchStatus, p.draftStatus].some((s) => s === "queued" || s === "running");
@@ -486,6 +494,9 @@ export function ProspectReview({ id }: { id: string }) {
                 <button disabled={busy} onClick={() => action("replied")}>
                   Mark replied
                 </button>
+                <button disabled={busy} onClick={() => action("meeting")}>
+                  Meeting set
+                </button>
                 {p.followUpAt && (
                   <button
                     disabled={busy}
@@ -506,6 +517,27 @@ export function ProspectReview({ id }: { id: string }) {
                   }
                 >
                   Close conversation
+                </button>
+              </div>
+            </div>
+          )}
+          {(p.status === "replied" || p.status === "meeting") && (
+            <div className="source">
+              <h3>{p.status === "meeting" ? "Meeting set." : "They replied."}</h3>
+              <p className="muted">
+                First contact {date(p.contactedAt)}. Follow-up reminders are stopped.
+              </p>
+              <div className="actions source">
+                {p.status === "replied" && (
+                  <button className="primary" disabled={busy} onClick={() => action("meeting")}>
+                    Meeting set
+                  </button>
+                )}
+                <button
+                  disabled={busy}
+                  onClick={() => action("close", "Close this lead? It leaves the active pipeline.")}
+                >
+                  Close lead
                 </button>
               </div>
             </div>

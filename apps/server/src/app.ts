@@ -154,6 +154,7 @@ export function createApp(options: {
                 "approve",
                 "contacted",
                 "replied",
+                "meeting",
                 "close",
                 "skip",
                 "suppress",

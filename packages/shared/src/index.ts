@@ -7,6 +7,7 @@ export const statuses = [
   "approved",
   "contacted",
   "replied",
+  "meeting",
   "closed",
   "skipped",
   "suppressed",
@@ -256,6 +257,8 @@ export const overviewSchema = z.object({
   contacted: z.number(),
   due: z.number(),
   contactedToday: z.number(),
+  replied: z.number(),
+  meetings: z.number(),
   dailyLimit: z.number(),
 });
 export const mailboxSchema = z.object({

@@ -13,7 +13,9 @@ import type { Campaign, Prospect } from "../packages/shared/src";
 // Local, disposable simulation only. Never reads the production DATABASE_URL.
 const root = resolve(import.meta.dir, "..");
 const local = await Bun.file(resolve(root, ".env")).text();
-const password = local.match(/^POSTGRES_PASSWORD=(.+)$/m)?.[1];
+// The local dev container password; .env may now point DATABASE_URL at a remote server.
+const password =
+  local.match(/^POSTGRES_PASSWORD=(.+)$/m)?.[1] || process.env.POSTGRES_PASSWORD;
 if (!password)
   throw new Error(
     "Simulation requires local compose.dev.yml PostgreSQL and its POSTGRES_PASSWORD. It never targets your VPS database.",
@@ -205,9 +207,16 @@ try {
     version: lead.version,
   });
   assert.equal(lead.status, "replied");
+  lead = await api(`/prospects/${lead.id}/actions`, "POST", {
+    action: "meeting",
+    version: lead.version,
+  });
+  assert.equal(lead.status, "meeting");
+  const tracked = await api<{ replied: number; meetings: number }>("/overview");
+  assert.equal(tracked.meetings, 1);
   record(
-    "Simulated contact and follow-up",
-    "Recorded only in simulation DB; advanced reminder time, found due lead, recorded follow-up and reply",
+    "Simulated contact, follow-up and lead tracking",
+    "Recorded only in simulation DB; found due lead, recorded follow-up, reply and meeting set",
   );
   lead = await api(`/prospects/${lead.id}/actions`, "POST", {
     action: "suppress",

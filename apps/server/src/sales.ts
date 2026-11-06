@@ -29,7 +29,13 @@ import { AppError, conflict } from "./errors";
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type ProspectRow = typeof prospects.$inferSelect;
 type Writer = Database | Tx;
-const immutable = new Set<ProspectStatus>(["contacted", "replied", "closed", "suppressed"]);
+const immutable = new Set<ProspectStatus>([
+  "contacted",
+  "replied",
+  "meeting",
+  "closed",
+  "suppressed",
+]);
 export const newId = () => crypto.randomUUID();
 
 export async function logActivity(
@@ -358,7 +364,15 @@ export function createSalesService(db: Database, config: SalesConfig) {
     async action(
       id: string,
       version: number,
-      action: "approve" | "contacted" | "replied" | "close" | "skip" | "suppress" | "followed_up",
+      action:
+        | "approve"
+        | "contacted"
+        | "replied"
+        | "meeting"
+        | "close"
+        | "skip"
+        | "suppress"
+        | "followed_up",
       actor: string,
     ) {
       return db.transaction(async (tx) => {
@@ -538,16 +552,27 @@ export function createSalesService(db: Database, config: SalesConfig) {
         }
         if (action === "replied" && p.status !== "contacted")
           conflict("Only contacted prospects can be marked replied.");
+        if (action === "meeting" && !["contacted", "replied"].includes(p.status))
+          conflict("Record the contact or reply before setting a meeting.");
         if (action === "skip") assertEditable(p);
-        const status = action === "replied" ? "replied" : action === "close" ? "closed" : "skipped";
+        const status =
+          action === "replied"
+            ? "replied"
+            : action === "meeting"
+              ? "meeting"
+              : action === "close"
+                ? "closed"
+                : "skipped";
         const result = await save(tx, p, { status, approvalVersion: null, followUpAt: null });
         await logActivity(
           tx,
           id,
           status,
-          action === "replied"
-            ? "Reply received; follow-up stopped."
-            : "Prospect removed from the active queue.",
+          action === "meeting"
+            ? "Meeting set; follow-up stopped."
+            : action === "replied"
+              ? "Reply received; follow-up stopped."
+              : "Prospect removed from the active queue.",
           actor,
         );
         return result;
@@ -688,6 +713,8 @@ export function createSalesService(db: Database, config: SalesConfig) {
         contacted: counts.contacted || 0,
         due: due[0]!.value,
         contactedToday: capacity.count,
+        replied: counts.replied || 0,
+        meetings: counts.meeting || 0,
         dailyLimit: config.DAILY_CONTACT_LIMIT,
       };
     },

@@ -97,6 +97,7 @@ function FollowUps() {
                           [
                             ...(p.followUpAt ? [["followed_up", "Follow-up sent"]] : []),
                             ["replied", "Replied"],
+                            ["meeting", "Meeting set"],
                             ["close", "Close"],
                           ] as const
                         ).map(([action, label]) => (
