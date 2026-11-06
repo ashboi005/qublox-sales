@@ -18,7 +18,7 @@ Checkpoints:
 - [x] Humanized drafting prompt, `{{sender}}` placeholder, deterministic style cleanup.
 - [x] Admin role, per-member encrypted Gmail mailboxes, SMTP login check, setup instructions, sender-name rendering.
 - [x] Lead tracker: meeting status and table columns.
-- [ ] WhatsApp channel and businesses without websites.
+- [x] WhatsApp channel and businesses without websites.
 - [ ] Automatic research → draft pipeline.
 - [ ] Scraper improvements (Cloudflare-protected emails, JSON-LD, obfuscated addresses, common contact paths, WhatsApp links) with a real-site hit-rate check.
 - [ ] Verification record, simulation, commit.

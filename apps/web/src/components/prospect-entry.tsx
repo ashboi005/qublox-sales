@@ -78,6 +78,8 @@ export function ProspectEntry({
                 name: fields.get("name"),
                 website: fields.get("website"),
                 email: fields.get("email"),
+                phone: fields.get("phone"),
+                channel: fields.get("website") || fields.get("email") ? "email" : "whatsapp",
                 campaignId,
               });
               await api("/prospects", prospectSchema, { method: "POST", body });
@@ -117,7 +119,11 @@ export function ProspectEntry({
             </label>
             <label>
               Website
-              <input name="website" required placeholder="brand.com" maxLength={2048} />
+              <input name="website" placeholder="brand.com, or empty" maxLength={2048} />
+            </label>
+            <label>
+              Phone / WhatsApp, if known
+              <input name="phone" maxLength={100} placeholder="+91 98765 43210" />
             </label>
             <label>
               Email, if known
@@ -130,8 +136,8 @@ export function ProspectEntry({
             Maps extension JSON
             <input name="file" type="file" accept="application/json,.json" required />
             <span className="hint">
-              Name and website are required. Source links and capture dates are retained. Repeated
-              domains are skipped.
+              Each business needs a website, email or phone. Without a website, its Maps listing
+              becomes evidence and WhatsApp is the channel. Repeated domains or phones are skipped.
             </span>
           </label>
         )}

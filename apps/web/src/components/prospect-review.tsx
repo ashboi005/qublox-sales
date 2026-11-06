@@ -2,7 +2,7 @@
 import { ProspectDelivery } from "./email-delivery";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, Copy, Mail, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, Check, Copy, Mail, MessageCircle, RefreshCw, Search } from "lucide-react";
 import {
   prospectDetailSchema,
   prospectSchema,
@@ -13,6 +13,7 @@ import {
   type Prospect,
   renderMessage,
   styleWarnings,
+  whatsappLink,
   unsupportedPlaceholders,
 } from "@qublox-sales/shared";
 import { authClient } from "@/lib/auth-client";
@@ -32,6 +33,12 @@ type Action =
   | "followed_up";
 type Write = (suffix: string, body: unknown, method?: string, success?: string) => Promise<boolean>;
 const terminal = new Set(["contacted", "replied", "meeting", "closed", "suppressed"]);
+const reachableOn = (p: Prospect) =>
+  p.channel === "email"
+    ? Boolean(p.email && p.draftSubject)
+    : p.channel === "whatsapp"
+      ? Boolean(whatsappLink(p.phone, p.country, ""))
+      : Boolean(p.instagram);
 const active = (p: Prospect) =>
   !terminal.has(p.status) &&
   [p.researchStatus, p.draftStatus].some((s) => s === "queued" || s === "running");
@@ -125,7 +132,7 @@ export function ProspectReview({ id }: { id: string }) {
         p.draftBody &&
         p.draftEvidenceIds.length &&
         campaign?.version === p.draftCampaignVersion &&
-        (p.channel === "email" ? p.email && p.draftSubject : p.instagram),
+        reachableOn(p),
     );
   return (
     <>
@@ -137,13 +144,14 @@ export function ProspectReview({ id }: { id: string }) {
         <div>
           <h1>{p.name}</h1>
           <p>
-            <External href={p.website}>{p.domain}</External> <span aria-hidden="true"> · </span>{" "}
-            <Status value={p.status} />
+            {p.website ? <External href={p.website}>{p.domain}</External> : "No website"}{" "}
+            <span aria-hidden="true"> · </span> <Status value={p.status} />
           </p>
         </div>
         <div className="actions">
           <button
-            disabled={busy || dirty || working || !editable}
+            disabled={busy || dirty || working || !editable || !p.website}
+            title={p.website ? undefined : "No website to research"}
             onClick={() =>
               write(
                 "/jobs",
@@ -253,7 +261,7 @@ export function ProspectReview({ id }: { id: string }) {
       )}
       <details
         className="entry-panel"
-        open={!p.campaignId || (p.channel === "email" ? !p.email : !p.instagram)}
+        open={!p.campaignId || (p.channel === "email" ? !p.email : !reachableOn(p))}
       >
         <summary>Recipient &amp; offer · {campaign?.name || "Choose an offer"}</summary>
         <div className="source">
@@ -448,6 +456,18 @@ export function ProspectReview({ id }: { id: string }) {
                     <Mail size={16} />
                     Open email app
                   </a>
+                ) : p.channel === "whatsapp" ? (
+                  whatsappLink(p.phone, p.country, renderMessage(p.draftBody, me)) && (
+                    <a
+                      className="button"
+                      href={whatsappLink(p.phone, p.country, renderMessage(p.draftBody, me))!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle size={16} />
+                      Open WhatsApp with message
+                    </a>
+                  )
                 ) : (
                   p.instagram && <External href={p.instagram}>Open Instagram</External>
                 )}
@@ -626,7 +646,21 @@ function ContactEditor({
         </label>
         <label>
           Website
-          <input name="website" defaultValue={p.website} required maxLength={2048} />
+          <input
+            name="website"
+            defaultValue={p.website}
+            maxLength={2048}
+            placeholder="Leave empty if they have none"
+          />
+        </label>
+        <label>
+          Phone / WhatsApp
+          <input
+            name="phone"
+            defaultValue={p.phone}
+            maxLength={100}
+            placeholder="+91 98765 43210"
+          />
         </label>
         <label>
           Contact name
@@ -639,7 +673,8 @@ function ContactEditor({
         <label>
           Channel
           <select name="channel" defaultValue={p.channel}>
-            <option value="email">Email (manual send)</option>
+            <option value="email">Email</option>
+            <option value="whatsapp">WhatsApp (manual, opens your app)</option>
             <option value="instagram">Instagram (manual DM)</option>
           </select>
         </label>
@@ -666,7 +701,8 @@ function ContactEditor({
         </label>
         <label>
           Country
-          <input name="country" defaultValue={p.country} maxLength={100} />
+          <input name="country" defaultValue={p.country} maxLength={100} placeholder="India" />
+          <span className="hint">Local phone numbers are read as India unless set.</span>
         </label>
         <label className="span-full">
           Your notes
@@ -801,7 +837,11 @@ function DraftEditor({
               </label>
             )}
             <label>
-              {p.channel === "email" ? "Email message" : "Instagram message"}
+              {p.channel === "email"
+                ? "Email message"
+                : p.channel === "whatsapp"
+                  ? "WhatsApp message"
+                  : "Instagram message"}
               <textarea
                 name="body"
                 className="draft-body"

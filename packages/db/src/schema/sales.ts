@@ -18,10 +18,12 @@ export const prospects = pgTable(
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
-    website: text("website").notNull(),
-    domain: text("domain").notNull().unique(),
+    website: text("website").notNull().default(""),
+    // Null when the business has no website; phone_key then deduplicates.
+    domain: text("domain").unique(),
     email: text("email"),
     phone: text("phone").notNull().default(""),
+    phoneKey: text("phone_key").notNull().default(""),
     contactName: text("contact_name").notNull().default(""),
     country: text("country").notNull().default(""),
     instagram: text("instagram").notNull().default(""),
@@ -64,6 +66,7 @@ export const prospects = pgTable(
   (table) => [
     index("prospect_status_idx").on(table.status),
     index("prospect_follow_up_idx").on(table.followUpAt),
+    index("prospect_phone_key_idx").on(table.phoneKey),
   ],
 );
 
@@ -84,8 +87,9 @@ export const activities = pgTable(
 
 export const suppressions = pgTable("suppression", {
   id: text("id").primaryKey(),
-  domain: text("domain").notNull().unique(),
+  domain: text("domain").unique(),
   email: text("email"),
+  phoneKey: text("phone_key").notNull().default(""),
   reason: text("reason").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

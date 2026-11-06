@@ -858,3 +858,125 @@ test("teammates connect their own Gmail; the App Password is checked, encrypted 
   await setTeamRole(db, "test@qublox.local", "member");
   expect((await request<{ role: string }>("/api/settings")).data.role).toBe("member");
 });
+
+test("listing-only businesses import for WhatsApp with Maps evidence, deduplicated by phone", async () => {
+  const { data: offer } = await request<Campaign>("/api/campaigns", "POST", {
+    name: "Website build",
+    audience: "Local businesses without websites",
+    offer: "A simple website with WhatsApp enquiries",
+    proof: "",
+    callToAction: "Want to see an example?",
+  });
+  const imported = await request<{ added: number; duplicates: number; invalid: unknown[] }>(
+    "/api/imports",
+    "POST",
+    {
+      campaignId: offer.id,
+      records: [
+        {
+          name: "Sharma Sweets",
+          website: "",
+          phone: "098765 43210",
+          address: "Hall Bazaar, Amritsar",
+          rating: "4.3",
+          reviews: "212",
+          url: "https://www.google.com/maps/place/Sharma+Sweets",
+        },
+        { name: "Sharma Sweets (dup)", website: "", phone: "+91 98765-43210" },
+        { name: "Nothing to reach", website: "" },
+      ],
+    },
+  );
+  expect(imported.data).toMatchObject({ added: 1, duplicates: 1 });
+  expect(imported.data.invalid).toHaveLength(1);
+  const list = await request<{ data: Prospect[] }>("/api/prospects?q=98765");
+  let shop = list.data.data[0]!;
+  expect(shop).toMatchObject({
+    domain: null,
+    website: "",
+    channel: "whatsapp",
+    status: "researched",
+  });
+  expect(shop.evidence[0]).toMatchObject({ kind: "listing" });
+  expect(shop.evidence[0]!.text).toContain("No website is listed");
+  expect(shop.evidence[0]!.text).toContain("Rating 4.3 from 212 reviews");
+  const research = await request<{ error: { code: string } }>(
+    `/api/prospects/${shop.id}/jobs`,
+    "POST",
+    { kind: "research", version: shop.version },
+  );
+  expect(research.data.error.code).toBe("NO_WEBSITE");
+  shop = (
+    await request(`/api/prospects/${shop.id}/draft`, "PUT", {
+      version: shop.version,
+      score: 2,
+      rationale: "No website listed; enquiries happen by phone.",
+      evidenceIds: [shop.evidence[0]!.id],
+      subject: "",
+      body: "Hi Sharma Sweets team,\n\n{{sender}} here from Qublox. Would a simple website help?\n\nThanks,\n{{sender}}",
+    })
+  ).data;
+  shop = (
+    await request(`/api/prospects/${shop.id}/actions`, "POST", {
+      version: shop.version,
+      action: "approve",
+    })
+  ).data;
+  expect(shop.status).toBe("approved");
+  shop = (
+    await request(`/api/prospects/${shop.id}/actions`, "POST", {
+      version: shop.version,
+      action: "suppress",
+    })
+  ).data;
+  const again = await request("/api/prospects", "POST", {
+    name: "Same shop, new name",
+    phone: "9876543210",
+  });
+  expect(again.response.status).toBe(409);
+  expect(JSON.stringify(again.data)).toContain("do-not-contact");
+});
+
+test("WhatsApp approval needs a number whose country can be determined", async () => {
+  const { data: offer } = await request<Campaign>("/api/campaigns", "POST", {
+    name: "Bookings",
+    audience: "Clinics",
+    offer: "Online booking",
+    proof: "",
+    callToAction: "Open to a quick look?",
+  });
+  let p = (
+    await request("/api/prospects", "POST", {
+      name: "UK clinic",
+      phone: "0161 496 0000",
+      country: "United Kingdom",
+      channel: "whatsapp",
+      campaignId: offer.id,
+    })
+  ).data;
+  p = (
+    await request(`/api/prospects/${p.id}/evidence`, "POST", {
+      version: p.version,
+      url: "https://example.com/clinic",
+      title: "Clinic",
+      text: "Appointments are booked by phone only.",
+    })
+  ).data;
+  p = (
+    await request(`/api/prospects/${p.id}/draft`, "PUT", {
+      version: p.version,
+      score: 2,
+      rationale: "Phone-only booking",
+      evidenceIds: [p.evidence[0]!.id],
+      subject: "",
+      body: "Hi team, {{sender}} here. Would online booking help?",
+    })
+  ).data;
+  const blocked = await request<{ error: { message: string } }>(
+    `/api/prospects/${p.id}/actions`,
+    "POST",
+    { version: p.version, action: "approve" },
+  );
+  expect(blocked.response.status).toBe(422);
+  expect(blocked.data.error.message).toContain("country code");
+});

@@ -137,7 +137,7 @@ function Prospects() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               maxLength={200}
-              placeholder="Search business, domain, email"
+              placeholder="Search business, domain, email, phone"
             />
           </label>
           <button aria-label="Search">
@@ -229,17 +229,21 @@ function Prospects() {
                   <tr key={p.id}>
                     <td>
                       <Link href={`/prospects/${p.id}`}>{p.name}</Link>
-                      <small>{p.domain}</small>
+                      <small>{p.domain || p.phone || "No website"}</small>
                     </td>
                     <td>{offers.data?.find((c) => c.id === p.campaignId)?.name || "Unassigned"}</td>
                     <td>
-                      {p.channel === "email" ? "Email" : "Instagram"}
+                      {channelLabel[p.channel]}
                       <small>
                         {p.channel === "email"
                           ? p.email
                             ? "Unverified contact"
                             : "Email needed"
-                          : "Manual DM"}
+                          : p.channel === "whatsapp"
+                            ? p.phone
+                              ? "Manual message"
+                              : "Phone needed"
+                            : "Manual DM"}
                       </small>
                     </td>
                     <td>{p.score === null ? "—" : `${p.score} / 3`}</td>
@@ -284,3 +288,4 @@ function Prospects() {
     </>
   );
 }
+const channelLabel = { email: "Email", whatsapp: "WhatsApp", instagram: "Instagram" } as const;

@@ -77,6 +77,8 @@ export async function processJob(
     let research: Research | undefined,
       draft: DraftInput | undefined,
       campaignVersion: number | undefined;
+    if (job.kind === "research" && !p.website)
+      throw new Error("This business has no website to research. Add evidence manually.");
     if (job.kind === "research")
       research = researchSchema.parse(await (dependencies?.research || researchWebsite)(p.website));
     else {
@@ -123,7 +125,7 @@ export async function processJob(
         Object.assign(values, {
           research,
           evidence: [
-            ...current.evidence.filter((item) => item.kind === "manual"),
+            ...current.evidence.filter((item) => ["manual", "listing"].includes(item.kind)),
             ...research.evidence,
           ].slice(0, 30),
           researchStatus: "complete",
@@ -183,7 +185,7 @@ export async function processJob(
       : job.kind === "research" && job.attempts < 3;
     const detail =
       error instanceof Error &&
-      /^(Only public|The website|This website|This research|No usable|AI |Choose a campaign|The monthly)/.test(
+      /^(Only public|The website|This website|This business|This research|No usable|AI |Choose a campaign|The monthly)/.test(
         error.message,
       )
         ? error.message.slice(0, 300)

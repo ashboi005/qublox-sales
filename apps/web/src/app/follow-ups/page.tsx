@@ -86,9 +86,15 @@ function FollowUps() {
                   <tr key={p.id}>
                     <td>
                       <Link href={`/prospects/${p.id}`}>{p.name}</Link>
-                      <small>{p.domain}</small>
+                      <small>{p.domain || p.phone}</small>
                     </td>
-                    <td>{p.channel === "email" ? "Email" : "Instagram"}</td>
+                    <td>
+                      {p.channel === "email"
+                        ? "Email"
+                        : p.channel === "whatsapp"
+                          ? "WhatsApp"
+                          : "Instagram"}
+                    </td>
                     <td>{date(p.contactedAt)}</td>
                     <td>{p.followUpAt ? date(p.followUpAt) : "Completed"}</td>
                     <td>

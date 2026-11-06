@@ -11,8 +11,7 @@ const root = resolve(import.meta.dir, "..");
 const local = await Bun.file(resolve(root, ".env")).text();
 const privateSettings = parseEnv(local);
 // The local dev container password; .env may now point DATABASE_URL at a remote server.
-const password =
-  local.match(/^POSTGRES_PASSWORD=(.+)$/m)?.[1] || process.env.POSTGRES_PASSWORD;
+const password = local.match(/^POSTGRES_PASSWORD=(.+)$/m)?.[1] || process.env.POSTGRES_PASSWORD;
 if (!password)
   throw new Error("This check requires the local development database; it never uses the VPS URL.");
 const base = `postgresql://postgres:${password}@localhost:5438/`;

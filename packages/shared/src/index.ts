@@ -12,7 +12,7 @@ export const statuses = [
   "skipped",
   "suppressed",
 ] as const;
-export const channels = ["email", "instagram"] as const;
+export const channels = ["email", "whatsapp", "instagram"] as const;
 export type ProspectStatus = (typeof statuses)[number];
 export type Channel = (typeof channels)[number];
 
@@ -74,14 +74,16 @@ export const campaignInput = z.object({
 });
 export type CampaignInput = z.infer<typeof campaignInput>;
 
-export const prospectInput = z.object({
+export const prospectFields = z.object({
   name: z.string().trim().min(1).max(160),
+  // Optional: many local businesses only have a Maps listing, phone or Instagram.
   website: z
     .string()
     .trim()
-    .min(1)
     .max(2048)
+    .default("")
     .refine((value) => {
+      if (!value) return true;
       try {
         normalizeWebsite(value);
         return true;
@@ -108,6 +110,17 @@ export const prospectInput = z.object({
   address: optionalText(500),
   notes: optionalText(5000),
 });
+const reachable = (p: {
+  website: string;
+  email: string | null;
+  phone: string;
+  instagram: string;
+}) => Boolean(p.website || p.email || p.phone || p.instagram);
+const reachableMessage = "Add a website, email, phone or Instagram profile.";
+export const prospectInput = prospectFields.refine(reachable, reachableMessage);
+export const prospectUpdateInput = prospectFields
+  .extend({ version: z.number().int().min(1) })
+  .refine(reachable, reachableMessage);
 export type ProspectInput = z.infer<typeof prospectInput>;
 
 export const evidenceSchema = z.object({
@@ -115,7 +128,7 @@ export const evidenceSchema = z.object({
   url: webUrl.pipe(z.string().min(1)),
   title: z.string().max(200),
   text: z.string().trim().min(1).max(3000),
-  kind: z.enum(["website", "technology", "product", "manual"]),
+  kind: z.enum(["website", "technology", "product", "manual", "listing"]),
   retrievedAt: z.iso.datetime(),
 });
 export type Evidence = z.infer<typeof evidenceSchema>;
@@ -166,10 +179,10 @@ export const campaignSchema = campaignInput.extend({
 });
 export type Campaign = z.infer<typeof campaignSchema>;
 
-export const prospectSchema = prospectInput.extend({
+export const prospectSchema = prospectFields.extend({
   email: z.email().nullable(),
   id: z.uuid(),
-  domain: z.string(),
+  domain: z.string().nullable(),
   version: z.number(),
   status: z.enum(statuses),
   researchStatus: z.enum(["idle", "queued", "running", "complete", "failed"]),
@@ -290,3 +303,4 @@ export const settingsSchema = z.object({
 });
 
 export * from "./message";
+export * from "./contact";

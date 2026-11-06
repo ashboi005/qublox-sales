@@ -14,7 +14,9 @@ import {
 } from "@qublox-sales/db/schema/sales";
 import {
   normalizeWebsite,
+  phoneKey,
   prospectInput,
+  whatsappNumber,
   unsupportedPlaceholders,
   validateDraftEvidence,
   type CampaignInput,
@@ -69,16 +71,30 @@ export async function lockProspect(tx: Tx, id: string, version?: number, allowUn
     );
   return p;
 }
+// Website, email and phone each identify a business for do-not-contact and duplicates.
+export function identity(input: { website: string; phone: string }) {
+  const site = input.website ? normalizeWebsite(input.website) : { website: "", domain: null };
+  return { ...site, phoneKey: phoneKey(input.phone) };
+}
+const sameBusiness = (
+  table: typeof prospects | typeof suppressions,
+  p: { domain: string | null; email: string | null; phoneKey: string },
+) => {
+  const clauses = [
+    p.domain ? eq(table.domain, p.domain) : undefined,
+    p.email ? eq(table.email, p.email) : undefined,
+    p.phoneKey ? eq(table.phoneKey, p.phoneKey) : undefined,
+  ].filter(Boolean);
+  return clauses.length ? or(...clauses) : sql`false`;
+};
 export async function assertNotSuppressed(
   db: Writer,
-  p: Pick<ProspectRow, "domain" | "email" | "status">,
+  p: Pick<ProspectRow, "domain" | "email" | "status" | "phoneKey">,
 ) {
   const [match] = await db
     .select({ id: suppressions.id })
     .from(suppressions)
-    .where(
-      or(eq(suppressions.domain, p.domain), p.email ? eq(suppressions.email, p.email) : undefined),
-    )
+    .where(sameBusiness(suppressions, p))
     .limit(1);
   if (match || p.status === "suppressed") conflict("This business is on the do-not-contact list.");
 }
@@ -110,6 +126,35 @@ async function save(tx: Tx, p: ProspectRow, values: Partial<typeof prospects.$in
     .where(eq(prospects.id, p.id))
     .returning();
   return result!;
+}
+
+// Maps listing facts become evidence, so a business without a website can still be drafted.
+export function listingEvidence(
+  row: Record<string, unknown>,
+  p: ProspectInput,
+): Evidence | undefined {
+  if (!p.sourceUrl) return undefined;
+  const text = (v: unknown) =>
+    typeof v === "string" || typeof v === "number" ? String(v).trim() : "";
+  const rating = text(row.rating),
+    reviews = text(row.reviews),
+    category = text(row.category);
+  const facts = [
+    `Google Maps listing for ${p.name}.`,
+    category && `Category: ${category}.`,
+    rating && `Rating ${rating}${reviews ? ` from ${reviews} reviews` : ""}.`,
+    p.address && `Address: ${p.address}.`,
+    p.phone ? "A phone number is listed." : "No phone number is listed.",
+    p.website ? `Website listed: ${p.website}` : "No website is listed on the Maps profile.",
+  ].filter(Boolean);
+  return {
+    id: newId(),
+    url: p.sourceUrl,
+    title: "Google Maps listing",
+    text: facts.join(" ").slice(0, 3000),
+    kind: "listing",
+    retrievedAt: (p.sourceCapturedAt ? new Date(p.sourceCapturedAt) : new Date()).toISOString(),
+  };
 }
 
 export function createSalesService(db: Database, config: SalesConfig) {
@@ -203,6 +248,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
               ilike(prospects.name, `%${search}%`),
               ilike(prospects.domain, `%${search}%`),
               ilike(prospects.email, `%${search}%`),
+              ilike(prospects.phone, `%${search}%`),
             )
           : undefined,
         query.status ? eq(prospects.status, query.status) : undefined,
@@ -240,10 +286,21 @@ export function createSalesService(db: Database, config: SalesConfig) {
         .limit(20);
       return { prospect, activities: history, deliveries };
     },
-    async createProspect(input: ProspectInput, actor: string) {
+    async createProspect(input: ProspectInput, actor: string, seed?: Evidence) {
       return db.transaction(async (tx) => {
-        const normalized = normalizeWebsite(input.website);
+        const normalized = identity(input);
         await assertNotSuppressed(tx, { ...normalized, email: input.email, status: "new" });
+        if (!normalized.domain) {
+          // Without a domain, a phone or email match is the same business. Serialize the check.
+          await tx.execute(sql`select pg_advisory_xact_lock(713219)`);
+          const [existing] = await tx
+            .select({ id: prospects.id })
+            .from(prospects)
+            .where(sameBusiness(prospects, { ...normalized, email: input.email }))
+            .limit(1);
+          if (existing)
+            conflict("This business already exists in the workspace. Search for its phone.");
+        }
         const [p] = await tx
           .insert(prospects)
           .values({
@@ -255,6 +312,14 @@ export function createSalesService(db: Database, config: SalesConfig) {
           .onConflictDoNothing({ target: prospects.domain })
           .returning();
         if (!p) conflict("This business already exists in the workspace. Search for its domain.");
+        if (seed) {
+          const [withListing] = await tx
+            .update(prospects)
+            .set({ evidence: [seed], status: p.website ? p.status : "researched" })
+            .where(eq(prospects.id, p.id))
+            .returning();
+          Object.assign(p, withListing);
+        }
         await logActivity(
           tx,
           p.id,
@@ -269,7 +334,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
       return db.transaction(async (tx) => {
         const p = await lockProspect(tx, id, version);
         assertEditable(p);
-        const normalized = normalizeWebsite(input.website);
+        const normalized = identity(input);
         await assertNotSuppressed(tx, { ...normalized, email: input.email, status: p.status });
         const websiteChanged = p.website !== normalized.website;
         const result = await save(tx, p, {
@@ -283,7 +348,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
           ...(websiteChanged
             ? {
                 research: null,
-                evidence: [],
+                evidence: p.evidence.filter((e) => e.kind === "listing"),
                 researchStatus: "idle" as const,
                 draftBody: "",
                 draftSubject: "",
@@ -384,15 +449,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
             .select({ id: emailOutbox.id })
             .from(emailOutbox)
             .innerJoin(prospects, eq(prospects.id, emailOutbox.prospectId))
-            .where(
-              and(
-                eq(emailOutbox.status, "sending"),
-                or(
-                  eq(prospects.domain, p.domain),
-                  p.email ? eq(prospects.email, p.email) : undefined,
-                ),
-              ),
-            );
+            .where(and(eq(emailOutbox.status, "sending"), sameBusiness(prospects, p)));
           if (dispatching)
             conflict(
               "An email for this business or recipient is being dispatched. Wait for its result before suppressing it.",
@@ -403,6 +460,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
               id: newId(),
               domain: p.domain,
               email: p.email,
+              phoneKey: p.phoneKey,
               reason: "Manual do-not-contact request",
             })
             .onConflictDoNothing();
@@ -417,12 +475,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
               version: sql`${prospects.version} + 1`,
               updatedAt: new Date(),
             })
-            .where(
-              or(
-                eq(prospects.domain, p.domain),
-                p.email ? eq(prospects.email, p.email) : undefined,
-              ),
-            )
+            .where(or(eq(prospects.id, p.id), sameBusiness(prospects, p)))
             .returning({ id: prospects.id });
           await tx
             .update(jobs)
@@ -473,6 +526,12 @@ export function createSalesService(db: Database, config: SalesConfig) {
               422,
               "CONTACT_REQUIRED",
               "Add a recipient email and subject before approval.",
+            );
+          if (p.channel === "whatsapp" && !whatsappNumber(p.phone, p.country))
+            throw new AppError(
+              422,
+              "CONTACT_REQUIRED",
+              "Add a WhatsApp number with its country code (or set the country) before approval.",
             );
           if (p.channel === "instagram" && !p.instagram)
             throw new AppError(
@@ -588,6 +647,12 @@ export function createSalesService(db: Database, config: SalesConfig) {
           .from(jobs)
           .where(and(eq(jobs.prospectId, id), inArray(jobs.status, ["queued", "running"])));
         if (active) return p;
+        if (kind === "research" && !p.website)
+          throw new AppError(
+            422,
+            "NO_WEBSITE",
+            "This business has no website to research. Draft from its listing or add an observation.",
+          );
         if (kind === "draft" && !providerFor(config).key)
           throw new AppError(
             422,
@@ -663,8 +728,12 @@ export function createSalesService(db: Database, config: SalesConfig) {
         duplicates = 0;
       const invalid: { row: number; reason: string }[] = [];
       for (const [i, row] of records.entries()) {
+        const hasEmail = typeof row.email === "string" && row.email.trim();
+        const hasWebsite = typeof row.website === "string" && row.website.trim();
         const parsed = prospectInput.safeParse({
           ...row,
+          // Listing-only businesses are reached on WhatsApp unless an email is known.
+          channel: row.channel || (!hasWebsite && !hasEmail && row.phone ? "whatsapp" : "email"),
           campaignId,
           sourceUrl: row.sourceUrl || row.url || "",
           sourceCapturedAt: row.sourceCapturedAt || row.scrapedAt || null,
@@ -678,7 +747,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
           continue;
         }
         try {
-          await this.createProspect(parsed.data, actor);
+          await this.createProspect(parsed.data, actor, listingEvidence(row, parsed.data));
           added++;
         } catch (error) {
           if (

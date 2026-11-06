@@ -92,9 +92,9 @@ export function MapsImport({
       )}
       {withoutWebsite > 0 && (
         <Notice>
-          {withoutWebsite} {withoutWebsite === 1 ? "place needs" : "places need"} a website before
-          it can enter this pipeline. Add it in the JSON below, or keep those records in the
-          extension export.
+          {withoutWebsite} {withoutWebsite === 1 ? "place has" : "places have"} no website. They
+          import with their Maps listing as evidence and WhatsApp as the channel when a phone is
+          listed. Places with no website, email or phone are skipped.
         </Notice>
       )}
       {records.length > 0 && (
@@ -115,7 +115,9 @@ export function MapsImport({
               {records.slice(0, 10).map((r, i) => (
                 <tr key={i}>
                   <td>{String(r.name || "Missing name")}</td>
-                  <td>{String(r.website || "Missing website")}</td>
+                  <td>
+                    {String(r.website || (r.phone ? `No website · ${r.phone}` : "No contact"))}
+                  </td>
                   <td>{String(r.phone || "Not listed")}</td>
                   <td>
                     {r.captureStatus === "list_only"

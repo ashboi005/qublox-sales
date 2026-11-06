@@ -8,6 +8,7 @@ import {
   draftInput,
   manualEvidenceInput,
   prospectInput,
+  prospectUpdateInput,
   revisionSchema,
   statuses,
   queueEmailInput,
@@ -136,7 +137,7 @@ export function createApp(options: {
           return sales.createProspect(prospectInput.parse(body), actor);
         })
         .patch("/prospects/:id", ({ params, body, actor }) => {
-          const input = prospectInput.extend({ version: z.number().int().min(1) }).parse(body);
+          const input = prospectUpdateInput.parse(body);
           return sales.updateProspect(id(params.id), input.version, input, actor);
         })
         .post("/prospects/:id/evidence", ({ params, body, actor }) => {
