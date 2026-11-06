@@ -273,3 +273,5 @@ export const settingsSchema = z.object({
   emailSendingEnabled: z.boolean(),
   mailboxes: z.array(z.object({ id: z.string(), email: z.string() })),
 });
+
+export * from "./message";

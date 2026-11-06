@@ -51,7 +51,7 @@ export async function generateDraft(
   db: Database,
   config: SalesConfig,
   jobId: string,
-  prospect: { name: string; channel: string; evidence: Evidence[] },
+  prospect: { name: string; channel: string; evidence: Evidence[]; contactName?: string },
   campaign: CampaignInput,
   fetcher: (url: string, init: RequestInit) => Promise<Response> = fetch,
 ) {
@@ -62,7 +62,7 @@ export async function generateDraft(
       "AI_NOT_CONFIGURED",
       "AI provider is not configured. You can write a manual draft.",
     );
-  const request = buildDraftRequest(prospect, campaign, selected);
+  const request = buildDraftRequest(prospect, campaign, selected, config.COMPANY_NAME);
   const wire = providerRequest(request, selected);
   // Byte-based input allowance plus protocol overhead is deliberately conservative.
   // Provider quotas/headers remain authoritative, including usage outside this app.
@@ -151,5 +151,5 @@ export async function generateDraft(
       })
       .where(eq(llmUsage.id, id));
   }
-  return parseDraftResponse(raw, prospect.evidence, selected).draft;
+  return parseDraftResponse(raw, prospect.evidence, selected, config.COMPANY_NAME).draft;
 }

@@ -22,7 +22,17 @@ Planning assumption: 10 prospects × 22 working days = 220 initial drafts; allow
 
 At an illustrative **2,000 input + 800 output tokens per request**, including reasoning tokens, 300 requests consume 600,000 input + 240,000 output tokens. Paid list-price estimates: **$0.117 Groq 20B**, **$0.234 Groq 120B**, **$0.156 Gemini 2.5 Lite**, **$0.510 Gemini 3.1 Lite**, or **$0.780 Gemini 3.5 Lite** per month. These are calculations, not measured usage or quotes. Qualifying free-tier requests can cost $0; a key alone does not establish free-tier eligibility or prevent billing. Regenerations and manually retried ambiguous failures add usage.
 
-The request builder caps message JSON at 5,500 UTF-8 bytes and output at 1,600 tokens. It sends bounded offer fields and up to six short evidence excerpts. Groq uses low reasoning; legacy Gemini 2.5 disables thinking; Gemini 3.1/3.5 use minimal thinking. Gemini uses the native generateContent API with a required object response schema; object and bounded chunk-array transport responses are normalized and thinking tokens are metered. Large evidence is shortened, not sent wholesale. Every response still passes schema/evidence checks and needs human approval.
+The request builder caps message JSON at 7,500 UTF-8 bytes and output at 1,600 tokens. It sends bounded offer fields and up to six short evidence excerpts. Groq uses low reasoning; legacy Gemini 2.5 disables thinking; Gemini 3.1/3.5 use minimal thinking. Gemini uses the native generateContent API with a required object response schema; object and bounded chunk-array transport responses are normalized and thinking tokens are metered. Large evidence is shortened, not sent wholesale. Every response still passes schema/evidence checks and needs human approval.
+
+## Draft voice (humanized)
+
+The system prompt (`draftInstructions` in `apps/server/src/llm-provider.ts`) embeds a condensed version of the humanizer skill's rules plus the team's style: plain and warm, mixed sentence lengths, a little natural redundancy, full stops instead of dashes, few commas, no hype words, no exclamation marks, one question, under 120 words. The full skill is about 5,200 words, too large for free-tier token limits, so only its highest-signal rules are included.
+
+The model also reasons about what the business plausibly needs (online booking, a mobile-friendly site, a store, enquiry automation) from what the evidence shows or lacks, then offers that idea softly as a question. The rationale explains the reasoning to the reviewer.
+
+Every draft uses the literal placeholder `{{sender}}`: "{{sender}} here from Qublox." It is filled in with the first name of whichever teammate's Gmail sends the message, or your own name when you copy a message to send manually. `COMPANY_NAME` sets the company used in the prompt.
+
+Model output is cleaned before saving: long dashes, curly quotes and bracket placeholders like `[Your Name]` are replaced, an invented sender name ("Alex here from Qublox") becomes `{{sender}}`, duplicated sign-offs are removed, and one-line bodies get their line breaks back. Approval is blocked while any other placeholder (for example `{{first_name}}` or `[Company]`) remains. The review screen also shows an advisory style check for common AI tells.
 
 ## Setup
 

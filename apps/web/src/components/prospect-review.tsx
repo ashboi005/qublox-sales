@@ -11,7 +11,11 @@ import {
   type Campaign,
   type DraftInput,
   type Prospect,
+  renderMessage,
+  styleWarnings,
+  unsupportedPlaceholders,
 } from "@qublox-sales/shared";
+import { authClient } from "@/lib/auth-client";
 import { api, date, message, time } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import { campaignsSchema } from "./prospect-entry";
@@ -28,6 +32,8 @@ export function ProspectReview({ id }: { id: string }) {
   const detail = useResource(`/prospects/${id}`, prospectDetailSchema);
   const offers = useResource("/campaigns", campaignsSchema);
   const settings = useResource("/settings", settingsSchema);
+  const session = authClient.useSession();
+  const me = session.data?.user.name || "";
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<"contact" | "evidence" | "draft" | null>(null);
@@ -429,7 +435,7 @@ export function ProspectReview({ id }: { id: string }) {
                 {p.channel === "email" && p.email ? (
                   <a
                     className="button"
-                    href={`mailto:${encodeURIComponent(p.email)}?subject=${encodeURIComponent(p.draftSubject)}&body=${encodeURIComponent(p.draftBody)}`}
+                    href={`mailto:${encodeURIComponent(p.email)}?subject=${encodeURIComponent(renderMessage(p.draftSubject, me))}&body=${encodeURIComponent(renderMessage(p.draftBody, me))}`}
                   >
                     <Mail size={16} />
                     Open email app
@@ -440,7 +446,7 @@ export function ProspectReview({ id }: { id: string }) {
                 <button
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText(p.draftBody);
+                      await navigator.clipboard.writeText(renderMessage(p.draftBody, me));
                       setNotice("Message copied.");
                     } catch {
                       setError(
@@ -773,6 +779,11 @@ function DraftEditor({
                 placeholder="Write a short, useful message grounded in the evidence on the left."
               />
             </label>
+            <p className="hint">
+              Write {"{{sender}}"} where the sender&apos;s name goes. It becomes the first name of
+              whoever sends it, for example &ldquo;Mania here from Qublox&rdquo;.
+            </p>
+            <StyleCheck text={`${p.draftSubject}\n${p.draftBody}`} />
             <fieldset>
               <legend>Supporting sources</legend>
               {!p.evidence.length && (
@@ -816,5 +827,30 @@ function DraftEditor({
         )}
       </fieldset>
     </form>
+  );
+}
+
+function StyleCheck({ text }: { text: string }) {
+  const blocking = unsupportedPlaceholders(text);
+  const advice = styleWarnings(text);
+  if (!text.trim() || (!blocking.length && !advice.length)) return null;
+  return (
+    <div className="style-check" role="note">
+      {blocking.length > 0 && (
+        <p className="notice error">
+          Replace {blocking.join(", ")} before approving. Only {"{{sender}}"} is filled in for you.
+        </p>
+      )}
+      {advice.length > 0 && (
+        <>
+          <p className="hint">Saved draft style check (advisory):</p>
+          <ul className="hint">
+            {advice.map((a) => (
+              <li key={a}>{a}</li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
   );
 }

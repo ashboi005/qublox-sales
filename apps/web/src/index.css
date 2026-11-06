@@ -772,3 +772,8 @@ tbody tr:hover {
     padding: var(--space-32) var(--space-lg);
   }
 }
+
+.style-check ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}

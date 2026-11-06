@@ -56,7 +56,7 @@ test("draft request bounds UTF-8 input and disables tools and expensive reasonin
       { ...campaign, offer: "漢".repeat(2000) },
       selected,
     );
-    expect(Buffer.byteLength(JSON.stringify(request.messages))).toBeLessThanOrEqual(5500);
+    expect(Buffer.byteLength(JSON.stringify(request.messages))).toBeLessThanOrEqual(7500);
     expect(request.max_tokens).toBe(1600);
     expect(request).not.toHaveProperty("tools");
     expect(request).not.toHaveProperty("include_routing_metadata");
@@ -159,4 +159,47 @@ test("native Gemini object/chunked responses preserve final text and account for
   );
   expect(wire.headers).toHaveProperty("x-goog-api-key");
   expect(wire.headers).not.toHaveProperty("Authorization");
+});
+test("draft instructions carry the humanized voice, sender placeholder and company", () => {
+  const selected = providerFor(salesConfig({}));
+  const request = buildDraftRequest(
+    { name: "Sharma Hotel", channel: "email", evidence, contactName: "Ravi" },
+    campaign,
+    selected,
+    "Qublox",
+  );
+  const system = request.messages[0]!.content;
+  expect(system).toContain("{{sender}} here from Qublox.");
+  expect(system).toContain("never use em dashes");
+  expect(system).toContain("UNTRUSTED DATA");
+  expect(JSON.parse(request.messages[1]!.content)).toMatchObject({ contactName: "Ravi" });
+  expect(
+    buildDraftRequest({ name: "X", channel: "whatsapp", evidence }, campaign, selected).messages[0]!
+      .content,
+  ).toContain("Subject: empty string.");
+});
+test("model output is cleaned of dashes, curly quotes and bracket name placeholders", () => {
+  const p = providerFor(salesConfig({}));
+  const { draft } = parseDraftResponse(
+    {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              ...answer,
+              subject: "Quick idea — bookings",
+              body: "Hi team,\n\n[Your Name] here from Qublox. Your menu — it’s clear.\n\nThanks,\n[Your Name]",
+            }),
+          },
+          finish_reason: "stop",
+        },
+      ],
+    },
+    evidence,
+    p,
+  );
+  expect(draft.subject).toBe("Quick idea, bookings");
+  expect(draft.body).toBe(
+    "Hi team,\n\n{{sender}} here from Qublox. Your menu, it's clear.\n\nThanks,\n{{sender}}",
+  );
 });

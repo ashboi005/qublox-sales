@@ -24,6 +24,13 @@ const schema = z
       .max(80)
       .regex(/^[^\r\n]*$/)
       .default("Qublox"),
+    COMPANY_NAME: z
+      .string()
+      .trim()
+      .min(1)
+      .max(60)
+      .regex(/^[^\r\n{}\[\]]*$/)
+      .default("Qublox"),
     EMAIL_MIN_INTERVAL_SECONDS: z.coerce.number().int().min(60).max(86400).default(120),
     EMAIL_ACCOUNT_INTERVAL_SECONDS: z.coerce.number().int().min(60).max(86400).default(600),
   })

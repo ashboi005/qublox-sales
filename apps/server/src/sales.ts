@@ -15,6 +15,7 @@ import {
 import {
   normalizeWebsite,
   prospectInput,
+  unsupportedPlaceholders,
   validateDraftEvidence,
   type CampaignInput,
   type DraftInput,
@@ -464,6 +465,13 @@ export function createSalesService(db: Database, config: SalesConfig) {
               422,
               "CONTACT_REQUIRED",
               "Add the Instagram profile before approval.",
+            );
+          const placeholders = unsupportedPlaceholders(`${p.draftSubject}\n${p.draftBody}`);
+          if (placeholders.length)
+            throw new AppError(
+              422,
+              "PLACEHOLDER",
+              `Replace ${placeholders.join(", ")} before approval. Only {{sender}} is filled in automatically.`,
             );
           const [campaign] = await tx
             .select()

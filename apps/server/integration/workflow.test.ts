@@ -179,9 +179,26 @@ test("campaign → evidence → approval → contact, with stale edits and suppr
     rationale: "A public manual registration flow",
     evidenceIds: [lead.evidence[0]!.id],
     subject: "Workshop registrations",
-    body: "Could a registration form help?",
+    body: "Hi [Owner Name], could a registration form help?",
   });
   lead = saved.data;
+  const placeholder = await request<{ error: { code: string } }>(
+    `/api/prospects/${lead.id}/actions`,
+    "POST",
+    { version: lead.version, action: "approve" },
+  );
+  expect(placeholder.response.status).toBe(422);
+  expect(placeholder.data.error.code).toBe("PLACEHOLDER");
+  lead = (
+    await request(`/api/prospects/${lead.id}/draft`, "PUT", {
+      version: lead.version,
+      score: 2,
+      rationale: "A public manual registration flow",
+      evidenceIds: [lead.evidence[0]!.id],
+      subject: "Workshop registrations",
+      body: "Hi team, {{sender}} here. Could a registration form help?",
+    })
+  ).data;
   lead = (
     await request(`/api/prospects/${lead.id}/actions`, "POST", {
       version: lead.version,
