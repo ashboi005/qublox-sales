@@ -1,7 +1,13 @@
 "use client";
-import { useState } from "react";
-import { Plus } from "lucide-react";
-import { campaignInput, campaignSchema, type Campaign } from "@qublox-sales/shared";
+import { useRef, useState } from "react";
+import { Plus, Sparkles } from "lucide-react";
+import { z } from "zod";
+import {
+  campaignInput,
+  campaignSchema,
+  type Campaign,
+  type CampaignInput,
+} from "@qublox-sales/shared";
 import { Workspace, Loading, Notice, Empty } from "@/components/workspace";
 import { campaignsSchema } from "@/components/prospect-entry";
 import { useResource } from "@/lib/use-resource";
@@ -101,6 +107,31 @@ function OfferEditor({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [polishing, setPolishing] = useState(false);
+  const [polished, setPolished] = useState<z.infer<typeof polishResult> | null>(null);
+  const form = useRef<HTMLFormElement>(null);
+  const polish = async () => {
+    if (!form.current) return;
+    setError("");
+    setPolished(null);
+    setPolishing(true);
+    try {
+      const body = campaignInput.parse(Object.fromEntries(new FormData(form.current)));
+      setPolished(await api("/campaigns/polish", polishResult, { method: "POST", body }));
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setPolishing(false);
+    }
+  };
+  const apply = (s: CampaignInput) => {
+    for (const [name, value] of Object.entries(s)) {
+      const field = form.current?.elements.namedItem(name);
+      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)
+        field.value = value;
+    }
+    setPolished(null);
+  };
   return (
     <section>
       <div className="section-title">
@@ -109,6 +140,7 @@ function OfferEditor({
       </div>
       {error && <Notice error>{error}</Notice>}
       <form
+        ref={form}
         className="form-stack"
         onSubmit={async (event) => {
           event.preventDefault();
@@ -189,12 +221,50 @@ function OfferEditor({
           Changing an offer clears existing approvals for that offer. Drafts must be reviewed and
           saved against the new revision.
         </p>
-        <div>
-          <button className="primary" disabled={busy}>
+        <div className="actions">
+          <button className="primary" disabled={busy || polishing}>
             {busy ? "Saving…" : "Save offer"}
           </button>
+          <button type="button" onClick={polish} disabled={busy || polishing}>
+            <Sparkles size={16} />
+            {polishing ? "Polishing…" : "Polish with AI"}
+          </button>
         </div>
+        <p className="hint">
+          Polish rewrites your rough notes into a clearer offer. It never adds clients, numbers or
+          claims you did not write. Nothing changes until you use the suggestion and save.
+        </p>
       </form>
+      {polished && (
+        <div className="entry-panel polish-suggestion" aria-live="polite">
+          <div className="section-title">
+            <h3>Suggested offer</h3>
+          </div>
+          {polished.notes && <p className="hint">{polished.notes}</p>}
+          <dl className="facts">
+            <dt>Name</dt>
+            <dd>{polished.suggestion.name}</dd>
+            <dt>Who</dt>
+            <dd>{polished.suggestion.audience}</dd>
+            <dt>Offer</dt>
+            <dd>{polished.suggestion.offer}</dd>
+            <dt>Proof</dt>
+            <dd>{polished.suggestion.proof || "None"}</dd>
+            <dt>Ask</dt>
+            <dd>{polished.suggestion.callToAction}</dd>
+          </dl>
+          <div className="actions">
+            <button className="primary" type="button" onClick={() => apply(polished.suggestion)}>
+              Use suggestion
+            </button>
+            <button type="button" onClick={() => setPolished(null)}>
+              Keep mine
+            </button>
+          </div>
+          <p className="hint">Using it fills the form above. Review it, then Save offer.</p>
+        </div>
+      )}
     </section>
   );
 }
+const polishResult = z.object({ suggestion: campaignInput, notes: z.string() });

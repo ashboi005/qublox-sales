@@ -6,7 +6,9 @@ import type { SalesConfig } from "./config";
 import { AppError } from "./errors";
 import {
   buildDraftRequest,
+  draftResponseSchema,
   estimateCost,
+  type ModelRequest,
   LlmDeferred,
   MAX_OUTPUT,
   parseDraftResponse,
@@ -56,14 +58,29 @@ export async function generateDraft(
   fetcher: (url: string, init: RequestInit) => Promise<Response> = fetch,
 ) {
   const selected = providerFor(config);
+  const request = buildDraftRequest(prospect, campaign, selected, config.COMPANY_NAME);
+  const raw = await callModel(db, config, jobId, request, draftResponseSchema, fetcher);
+  return parseDraftResponse(raw, prospect.evidence, selected, config.COMPANY_NAME).draft;
+}
+
+// One paced, metered model call shared by drafting and offer polishing. Returns the
+// provider response normalized to the chat-completions shape.
+export async function callModel(
+  db: Database,
+  config: SalesConfig,
+  ledgerId: string,
+  request: ModelRequest,
+  geminiSchema: object,
+  fetcher: (url: string, init: RequestInit) => Promise<Response> = fetch,
+) {
+  const selected = providerFor(config);
   if (!selected.key)
     throw new AppError(
       422,
       "AI_NOT_CONFIGURED",
       "AI provider is not configured. You can write a manual draft.",
     );
-  const request = buildDraftRequest(prospect, campaign, selected, config.COMPANY_NAME);
-  const wire = providerRequest(request, selected);
+  const wire = providerRequest(request, selected, geminiSchema);
   // Byte-based input allowance plus protocol overhead is deliberately conservative.
   // Provider quotas/headers remain authoritative, including usage outside this app.
   const inputAllowance = Buffer.byteLength(JSON.stringify(request.messages)) + 512;
@@ -103,7 +120,7 @@ export async function generateDraft(
       );
     await tx.insert(llmUsage).values({
       id,
-      jobId,
+      jobId: ledgerId,
       model: selected.model,
       provider: selected.provider,
       quotaTokens,
@@ -151,5 +168,5 @@ export async function generateDraft(
       })
       .where(eq(llmUsage.id, id));
   }
-  return parseDraftResponse(raw, prospect.evidence, selected, config.COMPANY_NAME).draft;
+  return raw;
 }

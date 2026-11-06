@@ -63,3 +63,7 @@ test("layout repair restores the sender token and line breaks models drop", () =
   const good = "Hi Ravi,\n\n{{sender}} here from Qublox. Quick question.\n\nThanks,\n{{sender}}";
   expect(enforceSenderLayout(good, "Qublox")).toBe(good);
 });
+
+test("non-breaking hyphens become plain hyphens", () => {
+  expect(cleanDraftText("easy‑to‑use")).toBe("easy-to-use");
+});

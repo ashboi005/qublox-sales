@@ -5,6 +5,7 @@ import { mkdirSync } from "node:fs";
 import { createDb } from "../packages/db/src";
 import { salesConfig } from "../apps/server/src/config";
 import { generateDraft } from "../apps/server/src/llm";
+import { polishOffer } from "../apps/server/src/offer-polish";
 import { providerFor } from "../apps/server/src/llm-provider";
 
 // Explicit live check: two bounded calls, fictional public-style evidence, no outreach.
@@ -66,6 +67,22 @@ try {
       continue;
     }
     try {
+      if (process.env.MODEL_CHECK_TASK === "polish") {
+        // Offer polishing check: a rough offer in, a suggestion out. Nothing is saved.
+        const polished = await polishOffer(db, config, {
+          name: "E-Commerce Website",
+          audience:
+            "any type of retailer/wholeseller who wants to take their business online and put up an e-commerce store",
+          offer:
+            "clean responsive and fast UI\ncheckout cart wishlist\neasy to use intuitive admin panel\nadvanced features like sales, coupon and whatsapp marketing",
+          proof:
+            "Have made e-commerce websites for proper real businesses in past doing real revenue now",
+          callToAction: "lets set up a meet and talk about your requirements and budget",
+        });
+        results.push({ provider, model: selected.model, status: "validated", polished });
+        console.log(`${provider}: offer polish validated.`);
+        continue;
+      }
       const draft = await generateDraft(
         db,
         config,

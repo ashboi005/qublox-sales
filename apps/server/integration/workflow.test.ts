@@ -1066,3 +1066,56 @@ test("any signed-in teammate can change their own password with the current one"
   expect((await signIn(member.password)).status).toBe(401);
   expect((await signIn("my-easier-password-1")).status).toBe(200);
 });
+
+test("polish with AI suggests a cleaner offer without saving it, through the paced model call", async () => {
+  const polished = createApp({
+    db,
+    auth,
+    origin,
+    config: salesConfig({ ...config, GROQ_API_KEY: "fake-key", LLM_RPM: 60 }),
+    fetchModel: async (_url, init) => {
+      const sent = JSON.parse(String(init.body));
+      expect(sent.messages[0].content).toContain("Never add clients");
+      expect(JSON.parse(sent.messages[1].content).callToAction).toContain("budget");
+      return Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: JSON.stringify({
+                name: "Online store build",
+                audience:
+                  "Retailers and wholesalers in India who sell offline and want an online store.",
+                offer: "A fast store with cart, wishlist and checkout — plus an easy admin panel.",
+                proof: "We have built stores for real businesses that now make revenue.",
+                callToAction: "Want me to send a couple of examples?",
+                notes: "Made the ask smaller and the audience more specific.",
+              }),
+            },
+          },
+        ],
+        usage: { prompt_tokens: 500, completion_tokens: 200 },
+      });
+    },
+  });
+  await db.update(llmProviderState).set({ blockedUntil: new Date(0) });
+  await db.delete(llmUsage);
+  const response = await polished.handle(
+    new Request(`${origin}/api/campaigns/polish`, {
+      method: "POST",
+      headers: { Origin: origin, Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "E-Commerce Website",
+        audience: "any type of retailer/wholeseller",
+        offer: "clean responsive and fast UI\ncheckout cart wishlist",
+        proof: "Have made e-commerce websites for proper real businesses",
+        callToAction: "lets set up a meet and talk about your requirements and budget",
+      }),
+    }),
+  );
+  expect(response.status).toBe(200);
+  const data = (await response.json()) as { suggestion: { offer: string; callToAction: string } };
+  expect(data.suggestion.callToAction).toBe("Want me to send a couple of examples?");
+  expect(data.suggestion.offer).not.toContain("—");
+  expect((await db.select().from(llmUsage)).length).toBe(1);
+});

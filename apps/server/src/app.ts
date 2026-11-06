@@ -19,6 +19,8 @@ import { createSalesService } from "./sales";
 import { createMailboxService, type Viewer } from "./mailboxes";
 import { mailboxInput } from "./mail-config";
 import type { VerifyMailbox } from "./gmail";
+import { polishOffer } from "./offer-polish";
+import { LlmDeferred } from "./llm-provider";
 
 export function createApp(options: {
   db: Database;
@@ -26,6 +28,7 @@ export function createApp(options: {
   origin: string;
   config: SalesConfig;
   verifyMailbox?: VerifyMailbox;
+  fetchModel?: (url: string, init: RequestInit) => Promise<Response>;
 }) {
   const { db, auth, origin, config } = options;
   const sales = createSalesService(db, config);
@@ -110,6 +113,20 @@ export function createApp(options: {
         .post("/campaigns", ({ body, set }) => {
           set.status = 201;
           return sales.createCampaign(campaignInput.parse(body));
+        })
+        .post("/campaigns/polish", async ({ body }) => {
+          try {
+            return await polishOffer(db, config, campaignInput.parse(body), options.fetchModel);
+          } catch (error) {
+            if (error instanceof LlmDeferred)
+              throw new AppError(
+                429,
+                "AI_BUSY",
+                `The AI is pacing requests. Try again in ${Math.max(1, Math.ceil((error.retryAt.getTime() - Date.now()) / 1000))} seconds.`,
+              );
+            if (error instanceof AppError) throw error;
+            throw new AppError(502, "AI_FAILED", "The AI could not polish this offer. Try again.");
+          }
         })
         .patch("/campaigns/:id", ({ params, body, actor }) => {
           const input = campaignInput.extend({ version: z.number().int().min(1) }).parse(body);

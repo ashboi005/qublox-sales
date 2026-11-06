@@ -128,9 +128,22 @@ export const responseSchema = z.object({
     })
     .optional(),
 });
+export type ModelRequest = ReturnType<typeof buildDraftRequest>;
+export const draftResponseSchema = {
+  type: "OBJECT",
+  properties: {
+    score: { type: "INTEGER", minimum: 0, maximum: 3 },
+    rationale: { type: "STRING" },
+    evidenceIds: { type: "ARRAY", items: { type: "STRING" } },
+    subject: { type: "STRING" },
+    body: { type: "STRING" },
+  },
+  required: ["score", "rationale", "evidenceIds", "subject", "body"],
+};
 export function providerRequest(
-  request: ReturnType<typeof buildDraftRequest>,
+  request: ModelRequest,
   selected: Provider,
+  geminiSchema: object = draftResponseSchema,
 ): { headers: Record<string, string>; body: unknown } {
   if (selected.provider === "groq")
     return {
@@ -145,17 +158,7 @@ export function providerRequest(
       generationConfig: {
         maxOutputTokens: MAX_OUTPUT,
         responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            score: { type: "INTEGER", minimum: 0, maximum: 3 },
-            rationale: { type: "STRING" },
-            evidenceIds: { type: "ARRAY", items: { type: "STRING" } },
-            subject: { type: "STRING" },
-            body: { type: "STRING" },
-          },
-          required: ["score", "rationale", "evidenceIds", "subject", "body"],
-        },
+        responseSchema: geminiSchema,
         thinkingConfig:
           selected.model === "gemini-2.5-flash-lite"
             ? { thinkingBudget: 0 }

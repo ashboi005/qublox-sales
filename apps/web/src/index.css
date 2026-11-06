@@ -813,3 +813,10 @@ tbody tr:hover {
   border-color: var(--color-ink);
   font-weight: 600;
 }
+
+.polish-suggestion {
+  margin-top: var(--space-md);
+}
+.polish-suggestion dd {
+  white-space: pre-line;
+}
