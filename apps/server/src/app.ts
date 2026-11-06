@@ -1,7 +1,7 @@
 import { createDeliveryService } from "./deliveries";
 import { Elysia } from "elysia";
 import { z, ZodError } from "zod";
-import { teamMembership, type createAuth } from "@qublox-sales/auth";
+import { teamMembership, type AuthConfig, type createAuth } from "@qublox-sales/auth";
 import type { Database } from "@qublox-sales/db";
 import {
   campaignInput,
@@ -23,11 +23,14 @@ import { polishOffer } from "./offer-polish";
 import { leadSearchInput, leadSearchService, type Fetcher } from "./discovery";
 import { LlmDeferred } from "./llm-provider";
 import { emailVerifier } from "./email-verify";
+import { newMemberInput, roleInput, teamService } from "./team";
 import { apiLedger } from "./readers";
 
 export function createApp(options: {
   db: Database;
   auth: ReturnType<typeof createAuth>;
+  // Needed to create team accounts from the portal (admin only).
+  authConfig?: AuthConfig;
   origin: string;
   config: SalesConfig;
   verifyMailbox?: VerifyMailbox;
@@ -46,6 +49,14 @@ export function createApp(options: {
     options.fetchPlaces,
   );
   const verifier = emailVerifier(db, config, options.fetchVerify);
+  const team = teamService(
+    db,
+    options.authConfig || {
+      BETTER_AUTH_URL: origin,
+      BETTER_AUTH_SECRET: config.BETTER_AUTH_SECRET,
+      CORS_ORIGIN: origin,
+    },
+  );
   const id = (value: string) => z.uuid().parse(value);
   return new Elysia({ serve: { maxRequestBodySize: 1024 * 1024 } })
     .onError(({ error, set, code }) => {
@@ -283,6 +294,21 @@ export function createApp(options: {
           firecrawlThisMonth: await apiLedger(db).used("firecrawl"),
           firecrawlMonthlyLimit: config.FIRECRAWL_MONTHLY_LIMIT,
         }))
+        .get("/team", ({ viewer }) => team.list(viewer))
+        .post("/team", ({ body, viewer }) => team.add(viewer, newMemberInput.parse(body)))
+        .patch("/team/:userId", ({ params, body, viewer }) =>
+          team.setRole(
+            viewer,
+            z.string().min(1).max(100).parse(params.userId),
+            roleInput.parse(body).role,
+          ),
+        )
+        .post("/team/:userId/reset-password", ({ params, viewer }) =>
+          team.resetPassword(viewer, z.string().min(1).max(100).parse(params.userId)),
+        )
+        .delete("/team/:userId", ({ params, viewer }) =>
+          team.remove(viewer, z.string().min(1).max(100).parse(params.userId)),
+        )
         .get("/mailboxes", ({ viewer }) => senders.list(viewer))
         .put("/mailboxes/me", ({ body, viewer }) =>
           senders.connect(viewer, mailboxInput.parse(body)),

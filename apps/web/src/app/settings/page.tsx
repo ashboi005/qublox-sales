@@ -2,6 +2,7 @@
 import { settingsSchema } from "@qublox-sales/shared";
 import { GmailSender } from "@/components/gmail-sender";
 import { AccountPassword } from "@/components/account-password";
+import { TeamManager } from "@/components/team-manager";
 import { Workspace, Loading, Notice, Status } from "@/components/workspace";
 import { useResource } from "@/lib/use-resource";
 import { time } from "@/lib/api";
@@ -28,6 +29,7 @@ function Settings() {
       {settings.error && <Notice error>{settings.error}</Notice>}
       {s && <AccountPassword role={s.role} />}
       {s && <GmailSender settings={s} onChange={settings.reload} />}
+      {s?.role === "admin" && <TeamManager />}
       {settings.loading ? (
         <Loading label="Checking workspace settings…" />
       ) : (

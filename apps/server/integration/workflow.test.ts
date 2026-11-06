@@ -4,7 +4,8 @@ import { beforeAll, afterAll, describe, expect, test } from "bun:test";
 import { createDb } from "@qublox-sales/db";
 import { createAuth } from "@qublox-sales/auth";
 import { teamMember } from "@qublox-sales/db/schema/team";
-import { user } from "@qublox-sales/db/schema/auth";
+import { session, user } from "@qublox-sales/db/schema/auth";
+import { teamService } from "../src/team";
 import {
   provisionTeamAccount,
   disableTeamAccount,
@@ -25,7 +26,7 @@ import {
   apiUsage,
   prospects,
 } from "@qublox-sales/db/schema/sales";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { prospectInput } from "@qublox-sales/shared";
 
 if (!process.env.DATABASE_URL?.endsWith("/qublox_sales_test"))
@@ -1472,4 +1473,69 @@ test("bulk offer assignment researches leads with sites, drafts listing-only one
       .map((j) => j.kind)
       .sort(),
   ).toEqual(["draft", "research"]);
+});
+
+test("admins manage the team in the portal: add, roles, reset, remove, restore, with guardrails", async () => {
+  const team = teamService(db, authConfig);
+  await provisionTeamAccount(authConfig, db, {
+    email: "team-admin@qublox.local",
+    name: "Team Admin",
+    password: "team-admin-password-1",
+    role: "admin",
+  });
+  const [adminUser] = await db.select().from(user).where(eq(user.email, "team-admin@qublox.local"));
+  const admin = { userId: adminUser!.id, name: "Team Admin", admin: true };
+  // Other admins from earlier tests would mask the last-admin guard; demote them for this test.
+  await db
+    .update(teamMember)
+    .set({ role: "member" })
+    .where(and(eq(teamMember.role, "admin"), ne(teamMember.userId, adminUser!.id)));
+  await expect(team.list({ ...admin, admin: false })).rejects.toThrow("Only admins");
+
+  const created = await team.add(admin, {
+    email: "Mania@Gmail.com",
+    name: "Mania",
+    role: "member",
+  });
+  expect(created.email).toBe("mania@gmail.com");
+  expect(created.password.length).toBeGreaterThanOrEqual(20);
+  await expect(
+    team.add(admin, { email: "mania@gmail.com", name: "Mania", role: "member" }),
+  ).rejects.toThrow("already on the team");
+  const listed = await team.list(admin);
+  const mania = listed.find((m) => m.email === "mania@gmail.com")!;
+  expect(mania).toMatchObject({ role: "member", active: true, gmail: null, you: false });
+  expect(listed.find((m) => m.id === adminUser!.id)!.you).toBe(true);
+
+  // The only admin cannot demote themselves; after promoting Mania they can.
+  await expect(team.setRole(admin, adminUser!.id, "member")).rejects.toThrow("at least one");
+  expect((await team.setRole(admin, mania.id, "admin")).role).toBe("admin");
+  expect((await team.setRole(admin, mania.id, "member")).role).toBe("member");
+
+  // Reset signs them out everywhere and returns a new password.
+  await db.insert(session).values({
+    id: crypto.randomUUID(),
+    userId: mania.id,
+    token: crypto.randomUUID(),
+    expiresAt: new Date(Date.now() + 86400000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  const reset = await team.resetPassword(admin, mania.id);
+  expect(reset.password).not.toBe(created.password);
+  expect(await db.select().from(session).where(eq(session.userId, mania.id))).toHaveLength(0);
+
+  await expect(team.remove(admin, adminUser!.id)).rejects.toThrow("cannot remove yourself");
+  await team.remove(admin, mania.id);
+  expect((await team.list(admin)).find((m) => m.id === mania.id)!.active).toBe(false);
+  const restored = await team.add(admin, {
+    email: "mania@gmail.com",
+    name: "Mania",
+    role: "admin",
+  });
+  expect(restored.reactivated).toBe(true);
+  expect((await team.list(admin)).find((m) => m.id === mania.id)).toMatchObject({
+    active: true,
+    role: "admin",
+  });
 });

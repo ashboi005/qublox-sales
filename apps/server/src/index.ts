@@ -1,12 +1,13 @@
 import { createApp } from "./app";
 import { salesConfig } from "./config";
 import { ENV } from "./env.server";
-import { auth, db } from "./services";
+import { auth, authConfig, db } from "./services";
 
 const port = ENV.PORT;
 const app = createApp({
   db,
   auth,
+  authConfig,
   origin: ENV.CORS_ORIGIN,
   config: salesConfig(process.env),
 }).listen(port);

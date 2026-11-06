@@ -315,6 +315,19 @@ export const mailboxSchema = z.object({
   verifiedAt: z.string().nullable(),
 });
 export type MailboxSummary = z.infer<typeof mailboxSchema>;
+export const teamMemberSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string(),
+  role: z.enum(["admin", "member"]),
+  active: z.boolean(),
+  createdAt: z.string(),
+  gmail: z.string().nullable(),
+  you: z.boolean(),
+});
+export type TeamMember = z.infer<typeof teamMemberSchema>;
+// A generated password, shown once to the admin who created or reset it.
+export const teamPasswordSchema = z.object({ email: z.string(), password: z.string() });
 export const settingsSchema = z.object({
   aiConfigured: z.boolean(),
   provider: z.enum(["groq", "gemini"]),

@@ -50,7 +50,7 @@ Businesses **without a website** still import if they have a phone, email or Ins
 ## Day-to-day flow
 
 1. **Set up once (admin).** Create an offer under Offers. Add teammates with `bun run team:add`. Each teammate signs in, changes their password, and connects their Gmail under Settings.
-2. **Collect leads.** Click **Find leads** on Prospects, type the niche and city, choose the offer. Or **Add one** for a single business (name plus one contact method), or **Import file** for an extension export.
+2. **Collect leads.** Click **Find leads** on Prospects, type the niche and city, and choose the offer (or "No offer" to only add them; you can tick leads later and use **Set offer & start research/drafts**). Or **Add one** for a single business (name plus one contact method), or **Import file** for an extension export.
 3. **Let it work.** With an offer chosen (in Find leads, Add one or Import), the app researches each website automatically and then asks the AI for a draft. This is `AUTO_PIPELINE`, on by default. Leads without a website go straight to drafting. Watch the status change on the Prospects list.
 4. **Review** (Prospects → **To review**, open a lead). The left side shows the evidence; the right side shows the draft. Edit anything, check the style hints, check the recipient and channel, then **Approve saved version**. Skip leads with no good angle.
 5. **Send.**
@@ -62,7 +62,9 @@ Businesses **without a website** still import if they have a phone, email or Ins
 ## Roles
 
 - **Member**: everything above, but sends email only from their own Gmail.
-- **Admin**: can also send from any teammate's Gmail (alone or as a pool) and disconnect senders. Granted on the server: `bun run team:role --email you@gmail.com --role admin`.
+- **Admin**: can also send from any teammate's Gmail (alone or as a pool), disconnect senders, and manage the team.
+
+Admins manage the team in **Settings → Team**: add a teammate (a password is generated and shown once, with a button to copy a sign-in message), switch someone between member and admin, reset a password (signs them out everywhere), remove access (signs them out and disconnects their Gmail; their leads and history stay) and restore it later. The team always keeps at least one admin, and nobody can remove themselves. The `bun run team:*` commands still work for the very first admin or for recovery.
 
 Everyone can change their own password in **Settings → Your account**.
 

@@ -1302,3 +1302,19 @@ th.pick,
 td.pick {
   width: 2.25rem;
 }
+.secret-box {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-rule);
+  border-radius: 8px;
+}
+.secret-box code {
+  font-size: 1.05em;
+  word-break: break-all;
+  user-select: all;
+}
+tr.muted td {
+  color: var(--color-muted);
+}

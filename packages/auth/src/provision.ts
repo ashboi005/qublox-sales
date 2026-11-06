@@ -6,7 +6,7 @@ import type { Database } from "@qublox-sales/db";
 import { account, session, user } from "@qublox-sales/db/schema/auth";
 import { createAuth, type AuthConfig } from "./index";
 
-// Invoked by the offline administrator command, never by an HTTP route.
+// Used by the offline team:add command and by the admin-only /team routes.
 export async function provisionTeamAccount(
   env: AuthConfig,
   db: Database,
