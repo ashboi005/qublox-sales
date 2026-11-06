@@ -772,6 +772,8 @@ export function createSalesService(db: Database, config: SalesConfig) {
               campaignId,
               approvalVersion: null,
               lastError: "",
+              // Changing the offer invalidates an approval; the draft goes back to review.
+              ...(p.status === "approved" ? { status: p.draftBody ? "review" : "new" } : {}),
               ...(changed ? { draftCampaignVersion: null } : {}),
               ...(kind === "research" ? { researchStatus: "queued" as const } : {}),
               ...(kind === "draft" ? { draftStatus: "queued" as const } : {}),

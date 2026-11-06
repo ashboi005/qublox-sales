@@ -1463,6 +1463,16 @@ test("bulk offer assignment researches leads with sites, drafts listing-only one
     "Test",
   );
   expect(result).toMatchObject({ updated: 2, research: 1, drafts: 1 });
+  // Removing the offer from an approved lead sends it back to review.
+  await db
+    .update(prospects)
+    .set({ status: "approved", draftBody: "Hi", approvalVersion: 99 })
+    .where(eq(prospects.id, listing.id));
+  const [approved] = await db.select().from(prospects).where(eq(prospects.id, listing.id));
+  await sales.assignOffer([{ id: listing.id, version: approved!.version }], null, "Test");
+  const [unassigned] = await db.select().from(prospects).where(eq(prospects.id, listing.id));
+  expect(unassigned).toMatchObject({ campaignId: null, status: "review", approvalVersion: null });
+  await sales.assignOffer([{ id: listing.id, version: unassigned!.version }], offer.id, "Test");
   expect(result.skipped).toHaveLength(1);
   const after = await db.select().from(prospects).where(eq(prospects.campaignId, offer.id));
   expect(after.map((p) => p.name).sort()).toEqual(["Bulk listing", "Bulk site"]);
