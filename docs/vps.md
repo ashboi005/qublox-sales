@@ -42,7 +42,7 @@ docker compose logs --tail=100 migrate server worker web
 Create each team account from the server:
 
 ```bash
-docker compose exec server bun run team:add --email you@your-domain.com --name 'Your name'
+docker compose exec server bun run team:add --email you@your-domain.com --name 'Your name' --role admin
 ```
 
 The command generates a password and displays it once in your terminal. Share it with that teammate privately. Public HTTP signup stays disabled. To supply your own password without putting it in process arguments or shell history, pass `--password-stdin` and provide the password on standard input through your preferred secure terminal/password-manager workflow.
