@@ -1,3 +1,4 @@
+import { createDeliveryService } from "./deliveries";
 import { Elysia } from "elysia";
 import { z, ZodError } from "zod";
 import { isTeamMember, type createAuth } from "@qublox-sales/auth";
@@ -9,6 +10,7 @@ import {
   prospectInput,
   revisionSchema,
   statuses,
+  queueEmailInput,
 } from "@qublox-sales/shared";
 import type { SalesConfig } from "./config";
 import { AppError } from "./errors";
@@ -22,6 +24,7 @@ export function createApp(options: {
 }) {
   const { db, auth, origin, config } = options;
   const sales = createSalesService(db, config);
+  const delivery = createDeliveryService(db, config);
   const id = (value: string) => z.uuid().parse(value);
   return new Elysia({ serve: { maxRequestBodySize: 1024 * 1024 } })
     .onError(({ error, set, code }) => {
@@ -164,6 +167,39 @@ export function createApp(options: {
             })
             .parse(body);
           return sales.importRecords(input.records, input.campaignId, actor);
+        })
+        .get("/deliveries", () => delivery.list())
+        .post("/deliveries", ({ body, actor }) =>
+          delivery.queue(queueEmailInput.parse(body), actor),
+        )
+        .post("/prospects/:id/delivery/change", ({ params, body, actor }) => {
+          const input = revisionSchema
+            .extend({
+              deliveryId: z.uuid(),
+              action: z.enum(["cancel", "now"]),
+              senderIds: z.array(z.string()).min(1).max(10).optional(),
+            })
+            .parse(body);
+          return delivery.change(
+            id(params.id),
+            input.version,
+            input.deliveryId,
+            input.action,
+            actor,
+            input.senderIds,
+          );
+        })
+        .post("/prospects/:id/delivery/resolve", ({ params, body, actor }) => {
+          const input = revisionSchema
+            .extend({ deliveryId: z.uuid(), delivered: z.boolean() })
+            .parse(body);
+          return delivery.resolve(
+            id(params.id),
+            input.version,
+            input.deliveryId,
+            input.delivered,
+            actor,
+          );
         })
         .get("/overview", () => sales.overview())
         .get("/settings", () => sales.settings()),

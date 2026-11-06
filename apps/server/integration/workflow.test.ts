@@ -667,16 +667,40 @@ test("Gemini uses its own endpoint/key and meters tokens without a Merge fee", a
     aiProspect,
     aiCampaign,
     async (url, init) => {
-      expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
-      expect(init.headers).toMatchObject({ Authorization: "Bearer fake-gemini-key" });
-      return aiResponse();
+      expect(url).toBe(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+      );
+      expect(init.headers).toMatchObject({ "x-goog-api-key": "fake-gemini-key" });
+      return new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      score: 0,
+                      rationale: "No signal",
+                      evidenceIds: [],
+                      subject: "",
+                      body: "",
+                    }),
+                  },
+                ],
+              },
+              finishReason: "STOP",
+            },
+          ],
+          usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 200 },
+        }),
+      );
     },
   );
   expect(draft.score).toBe(0);
   expect((await db.select().from(llmUsage))[0]).toMatchObject({
     provider: "gemini",
     state: "estimated",
-    costMicros: 180,
+    costMicros: 800,
   });
 });
 test("local quota deferral requeues a draft without consuming its attempt count", async () => {
@@ -748,4 +772,27 @@ test("quota admission uses the database time after acquiring its lock", async ()
     holder.release();
     await pending?.catch(() => {});
   }
+});
+
+test("definitive provider rejection releases cost but retains request allowance", async () => {
+  await db.delete(llmUsage);
+  await db.delete(llmProviderState);
+  let calls = 0;
+  await expect(
+    generateDraft(
+      db,
+      salesConfig({ GROQ_API_KEY: "fake-key" }),
+      crypto.randomUUID(),
+      aiProspect,
+      aiCampaign,
+      async () => {
+        calls++;
+        return new Response("not found", { status: 404 });
+      },
+    ),
+  ).rejects.toThrow("HTTP 404");
+  expect(calls).toBe(1);
+  const [row] = await db.select().from(llmUsage);
+  expect(row).toMatchObject({ state: "rejected", costMicros: 0 });
+  expect(row!.quotaTokens).toBeGreaterThan(0);
 });

@@ -14,6 +14,8 @@ import {
   quotaWait,
   responseSchema,
   retryAt,
+  providerRequest,
+  normalizeProviderResponse,
 } from "./llm-provider";
 
 async function cooldown(db: Database, provider: string, until: Date) {
@@ -61,6 +63,7 @@ export async function generateDraft(
       "AI provider is not configured. You can write a manual draft.",
     );
   const request = buildDraftRequest(prospect, campaign, selected);
+  const wire = providerRequest(request, selected);
   // Byte-based input allowance plus protocol overhead is deliberately conservative.
   // Provider quotas/headers remain authoritative, including usage outside this app.
   const inputAllowance = Buffer.byteLength(JSON.stringify(request.messages)) + 512;
@@ -111,9 +114,10 @@ export async function generateDraft(
   // No SDK retries: ambiguous timeouts/5xx retain their reservation and need manual retry.
   const response = await fetcher(selected.endpoint, {
     method: "POST",
+    redirect: "error",
     signal: AbortSignal.timeout(45000),
-    headers: { Authorization: `Bearer ${selected.key}`, "Content-Type": "application/json" },
-    body: JSON.stringify(request),
+    headers: wire.headers,
+    body: JSON.stringify(wire.body),
   });
   const until = retryAt(response.headers, new Date(), response.status === 429, quotaTokens);
   if (until.getTime() > Date.now()) await cooldown(db, selected.provider, until);
@@ -124,11 +128,16 @@ export async function generateDraft(
   }
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});
+    if ([400, 401, 403, 404, 422].includes(response.status))
+      await db
+        .update(llmUsage)
+        .set({ costMicros: 0, state: "rejected" })
+        .where(eq(llmUsage.id, id));
     throw new Error(
       `AI provider request failed (HTTP ${response.status}). Check the selected model, API key and provider console.`,
     );
   }
-  const raw = await boundedJson(response);
+  const raw = normalizeProviderResponse(await boundedJson(response), selected);
   // Account for reported tokens even when the generated JSON/evidence is rejected.
   const metering = responseSchema.safeParse(raw);
   if (metering.success && metering.data.usage) {

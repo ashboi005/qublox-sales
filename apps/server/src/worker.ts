@@ -1,3 +1,4 @@
+import { createDeliveryService } from "./deliveries";
 import "./env.server";
 import { db } from "./services";
 import { salesConfig } from "./config";
@@ -11,9 +12,12 @@ process.on("SIGINT", () => {
   stopping = true;
 });
 const config = salesConfig(process.env);
+const delivery = createDeliveryService(db, config);
 console.log("Qublox research worker started");
 while (!stopping) {
   try {
+    await delivery.dispatchOne();
+    if (stopping) break;
     const job = await claimJob(db);
     if (job) await processJob(db, config, job);
   } catch {

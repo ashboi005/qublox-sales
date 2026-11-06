@@ -1,0 +1,433 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "263836f9-f506-4c39-a8de-ac750c0d2e48",
+  "prevIds": [
+    "95580d43-79f8-4619-bf24-b50aa0d883c8"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "email_outbox"
+      ],
+      "writes": [
+        "s|tbl|public.email_outbox",
+        "n|tbl|public.email_outbox",
+        "e|tbl|public.email_outbox",
+        "n|rel|public.email_outbox",
+        "n|type|public.email_outbox",
+        "n|rel|public.email_outbox_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "email_outbox",
+        "email_due_idx"
+      ],
+      "writes": [
+        "s|idx|public.email_due_idx",
+        "n|idx|public.email_due_idx",
+        "e|idx|public.email_due_idx",
+        "n|rel|public.email_due_idx"
+      ],
+      "reads": [
+        "n|tbl|public.email_outbox",
+        "n|sch|public",
+        "n|col|public.email_outbox.status",
+        "n|col|public.email_outbox.scheduled_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "email_outbox",
+        "email_one_pending_idx"
+      ],
+      "writes": [
+        "s|idx|public.email_one_pending_idx",
+        "n|idx|public.email_one_pending_idx",
+        "e|idx|public.email_one_pending_idx",
+        "n|rel|public.email_one_pending_idx"
+      ],
+      "reads": [
+        "n|tbl|public.email_outbox",
+        "n|sch|public",
+        "n|col|public.email_outbox.prospect_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "email_outbox"
+      ],
+      "writes": [
+        "s|fk|public.email_outbox.email_outbox_prospect_id_prospect_id_fkey",
+        "n|fk|public.email_outbox.email_outbox_prospect_id_prospect_id_fkey",
+        "e|fk|public.email_outbox.email_outbox_prospect_id_prospect_id_fkey",
+        "n|con|public.email_outbox.email_outbox_prospect_id_prospect_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.email_outbox",
+        "n|sch|public",
+        "n|tbl|public.prospect",
+        "n|sch|public",
+        "n|col|public.email_outbox.prospect_id",
+        "n|col|public.prospect.id",
+        "e|uniqueness|public.prospect.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "email_outbox",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "prospect_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "input_version",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "sender_pool",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "sender_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "to_address",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "subject",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "body",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "status",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'queued'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "scheduled_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "started_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "sent_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "message_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "''",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "last_error",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "''",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "created_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "email_due_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "status",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "scheduled_at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "email_one_pending_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "prospect_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": "\"status\" in ('queued','sending','uncertain')",
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "email_outbox_prospect_id_prospect_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "prospect_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "prospect",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "email_outbox",
+        "name": "email_outbox_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

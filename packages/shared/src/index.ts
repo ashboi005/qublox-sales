@@ -199,9 +199,49 @@ export const activitySchema = z.object({
   createdAt: z.string(),
 });
 export type Activity = z.infer<typeof activitySchema>;
+export const deliverySchema = z.object({
+  id: z.uuid(),
+  prospectId: z.uuid(),
+  inputVersion: z.number(),
+  senderPool: z.array(z.string()),
+  senderId: z.string().nullable(),
+  toAddress: z.string(),
+  subject: z.string(),
+  body: z.string(),
+  status: z.enum(["queued", "sending", "sent", "failed", "uncertain", "cancelled"]),
+  scheduledAt: z.string(),
+  startedAt: z.string().nullable(),
+  sentAt: z.string().nullable(),
+  messageId: z.string(),
+  lastError: z.string(),
+  createdAt: z.string(),
+});
+export type Delivery = z.infer<typeof deliverySchema>;
+export const queueEmailInput = z.object({
+  prospects: z
+    .array(z.object({ id: z.uuid(), version: z.number().int().min(1) }))
+    .min(1)
+    .max(100),
+  senderIds: z
+    .array(z.string().regex(/^[a-z0-9_-]{1,40}$/))
+    .min(1)
+    .max(10),
+  mode: z.enum(["now", "spread"]),
+  startAt: z.iso.datetime().optional(),
+  endAt: z.iso.datetime().optional(),
+});
+export type QueueEmailInput = z.infer<typeof queueEmailInput>;
+export const queueEmailResult = z.object({
+  queued: z.number(),
+  deliveries: z.array(deliverySchema),
+});
+export const outboxListSchema = z.array(
+  deliverySchema.extend({ prospectName: z.string(), currentVersion: z.number() }),
+);
 export const prospectDetailSchema = z.object({
   prospect: prospectSchema,
   activities: z.array(activitySchema),
+  deliveries: z.array(deliverySchema).default([]),
 });
 export const listSchema = z.object({
   data: z.array(prospectSchema),
@@ -230,4 +270,6 @@ export const settingsSchema = z.object({
   monthSpent: z.number(),
   dailyLimit: z.number(),
   authMode: z.string(),
+  emailSendingEnabled: z.boolean(),
+  mailboxes: z.array(z.object({ id: z.string(), email: z.string() })),
 });

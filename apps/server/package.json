@@ -20,15 +20,16 @@
     "@elysiajs/cors": "^1.4.2",
     "@qublox-sales/auth": "workspace:*",
     "@qublox-sales/db": "workspace:*",
+    "@qublox-sales/shared": "workspace:*",
     "@sinclair/typebox": "^0.34.52",
     "better-auth": "catalog:",
     "cheerio": "^1.2.0",
+    "drizzle-orm": "catalog:",
     "elysia": "^1.4.30",
     "ipaddr.js": "^2.5.0",
+    "nodemailer": "^10.3.1",
     "varlock": "catalog:",
-    "zod": "catalog:",
-    "@qublox-sales/shared": "workspace:*",
-    "drizzle-orm": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@qublox-sales/config": "workspace:*",

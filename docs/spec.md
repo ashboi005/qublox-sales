@@ -3,7 +3,7 @@
 ## Objective and accepted assumptions
 Build an internal, authenticated sales research workbench for Qublox. The user authorized implementation after reviewing the research and selected Next.js, Elysia, Bun, Better Auth, PostgreSQL, Drizzle, and Docker, hosted on their VPS. This is a single shared team workspace, not a public multi-tenant SaaS. An administrator provisions database-backed team accounts privately using the offline CLI; public signup is disabled. The serving API checks active database membership on every request.
 
-The first usable slice is: create a campaign → add/import prospects → collect public website evidence → optionally score/draft with the selected Groq/Gemini account → edit and approve → compose/copy manually → record contact and follow-ups. Instagram is manual. The app never sends email as a side effect of approval. SMTP delivery, paid contact databases, social scraping, and automated screenshots are subsequent integrations, not prerequisites for this slice.
+The first usable slice is: create a campaign → add/import prospects → collect public website evidence → optionally score/draft with the selected Groq/Gemini account → edit and approve → queue approved Gmail delivery or compose/copy manually → record contact and follow-ups. Instagram is manual. The app never sends email as a side effect of approval. A separate send/schedule action queues an immutable approved snapshot for Gmail SMTP. Paid contact databases, social scraping and automated screenshots remain subsequent integrations.
 
 ## Stack and structure
 - `apps/web`: Next App Router, React, CSS tokens, browser auth client, same-origin API proxy.
@@ -37,7 +37,7 @@ The first usable slice is: create a campaign → add/import prospects → collec
 - Evidence contains source URL, retrieved time, type and excerpt. Unknown, blocked, and failed research remain explicit.
 - LLM output is untrusted JSON: score 0–3, evidence references, rationale, subject/body. Invalid references fail. Score zero produces no suggested message. The integration is optional, server-side, token-limited, and budget-limited. Direct Groq/Gemini adapters use fixed endpoints; PostgreSQL serializes request/token admissions and persists provider cooldowns. Local waits do not consume attempts; explicit 429s retry at most three times. Ambiguous failures require manual retry. Queued work can be cancelled with a version-checked action. Cost records are paid-list-price estimates, including conservative reservations for unknown outcomes.
 - Draft edits, recipient/channel changes, campaign changes, and refreshed evidence invalidate approval. Version checks reject stale concurrent updates.
-- Approval is separate from recording a manual send. Suppression blocks further approval/contact; opt-outs and replies stop follow-ups. A default five-contact rolling 24-hour cap protects against accidentally recording a larger batch; it is not a deliverability guarantee.
+- Approval is separate from recording a manual send. Suppression blocks further approval/contact; opt-outs and replies stop follow-ups. A default ten-contact/send-attempt rolling 24-hour cap protects against accidentally recording a larger batch; it is not a deliverability guarantee.
 - Campaign/prospect data persists in PostgreSQL; jobs use transactional claims, leases, bounded retries, and stale-result checks.
 
 ## Code style
@@ -63,3 +63,9 @@ A privately provisioned team member can sign in, create an offer, import/add a b
 
 ## Threat model
 Assets: sessions, prospect/contact data, LLM credits, VPS network access. Boundaries: browser/API, auth/database, imported files, fetched websites, DNS/redirects, model responses. Principal abuse cases: anonymous access, removed team members retaining access, cross-origin writes, private-network fetches, malicious imported URLs, prompt injection, concurrent stale approvals, duplicate contact logging, and unbounded LLM spend. Controls live in code and are tested; prompts are not a security boundary.
+
+## Gmail outbox and membership
+
+`team:add` creates active PostgreSQL membership; public signup remains disabled. Removal disables membership and revokes sessions without restarting. Legacy allowlists are only used by the explicit one-time migration CLI.
+
+The outbox supports one approved email per prospect in queued/sending/uncertain states, explicit sender pools, bounded randomized-window scheduling, expedite and cancel. Edits revoke queued snapshots. Dispatch rechecks approval/suppression under the workspace lock and reserves the shared ten-attempt rolling cap. Ambiguous results never retry automatically. TLS attempts have a 45-second claim-anchored deadline and stale rows recover as uncertain after two minutes, even while sending is paused. Manual reconciliation is version-checked and preserves suppression. Gmail acceptance starts the existing manual follow-up reminder; reply synchronization and automatic follow-up copy/sending are not included.

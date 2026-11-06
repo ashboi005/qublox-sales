@@ -5,6 +5,7 @@ import { Plus, Upload, ArrowRight, Search } from "lucide-react";
 import { listSchema, overviewSchema, statuses } from "@qublox-sales/shared";
 import { Workspace, Loading, Empty, Notice, Status } from "@/components/workspace";
 import { campaignsSchema, ProspectEntry } from "@/components/prospect-entry";
+import { BulkEmailQueue } from "@/components/email-delivery";
 import { MapsImport } from "@/components/maps-import";
 import { useResource } from "@/lib/use-resource";
 import { date } from "@/lib/api";
@@ -68,7 +69,7 @@ function Prospects() {
             overview.data
               ? `${overview.data.contactedToday} / ${overview.data.dailyLimit}`
               : undefined,
-            "Contacts logged · last 24h",
+            "Contacts / attempts · last 24h",
           ],
         ].map(([value, label]) => (
           <div className="metric" key={label}>
@@ -91,6 +92,7 @@ function Prospects() {
         </Notice>
       )}
       <MapsImport campaigns={offers.data || []} onImported={reload} />
+      <BulkEmailQueue records={list.data?.data || []} onQueued={reload} />
       <div className="toolbar">
         <form
           className="filters"

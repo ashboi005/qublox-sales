@@ -1,3 +1,6 @@
+import { emailOutbox } from "@qublox-sales/db/schema/delivery";
+import { mailboxes } from "./mail-config";
+import { contactCapacity } from "./contact-cap";
 import { providerFor } from "./llm-provider";
 import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql, sum } from "drizzle-orm";
 import type { Database } from "@qublox-sales/db";
@@ -37,11 +40,26 @@ export async function logActivity(
 ) {
   await db.insert(activities).values({ id: newId(), prospectId: id, kind, detail, actor });
 }
-export async function lockProspect(tx: Tx, id: string, version?: number) {
+export async function lockProspect(tx: Tx, id: string, version?: number, allowUncertain = false) {
   await tx.execute(sql`select pg_advisory_xact_lock(713219)`);
   const [p] = await tx.select().from(prospects).where(eq(prospects.id, id)).for("update");
   if (!p) throw new AppError(404, "NOT_FOUND", "Prospect not found.");
   if (version !== undefined && p.version !== version) conflict();
+  const [delivery] = await tx
+    .select({ status: emailOutbox.status })
+    .from(emailOutbox)
+    .where(
+      and(
+        eq(emailOutbox.prospectId, id),
+        inArray(emailOutbox.status, allowUncertain ? ["sending"] : ["sending", "uncertain"]),
+      ),
+    );
+  if (delivery)
+    conflict(
+      delivery.status === "sending"
+        ? "An email is being dispatched. Wait for its result before editing."
+        : "Check Gmail and resolve the uncertain email before editing or sending again.",
+    );
   return p;
 }
 export async function assertNotSuppressed(
@@ -62,6 +80,13 @@ function assertEditable(p: ProspectRow) {
     conflict("This prospect is already contacted or closed. Use the activity actions instead.");
 }
 async function save(tx: Tx, p: ProspectRow, values: Partial<typeof prospects.$inferInsert>) {
+  await tx
+    .update(emailOutbox)
+    .set({
+      status: "cancelled",
+      lastError: "Prospect changed; queue the newly approved version if needed.",
+    })
+    .where(and(eq(emailOutbox.prospectId, p.id), eq(emailOutbox.status, "queued")));
   await tx
     .update(jobs)
     .set({ status: "cancelled" })
@@ -95,6 +120,20 @@ export function createSalesService(db: Database, config: SalesConfig) {
     async updateCampaign(id: string, version: number, input: CampaignInput, actor: string) {
       return db.transaction(async (tx) => {
         await tx.execute(sql`select pg_advisory_xact_lock(713219)`);
+        const [dispatching] = await tx
+          .select({ id: emailOutbox.id })
+          .from(emailOutbox)
+          .innerJoin(prospects, eq(prospects.id, emailOutbox.prospectId))
+          .where(
+            and(
+              eq(prospects.campaignId, id),
+              inArray(emailOutbox.status, ["sending", "uncertain"]),
+            ),
+          );
+        if (dispatching)
+          conflict(
+            "An email using this offer is being dispatched or awaiting confirmation. Resolve it before changing the offer.",
+          );
         const [current] = await tx
           .select()
           .from(campaigns)
@@ -118,6 +157,19 @@ export function createSalesService(db: Database, config: SalesConfig) {
           })
           .where(and(eq(prospects.campaignId, id), eq(prospects.status, "approved")))
           .returning({ id: prospects.id });
+        if (invalidated.length)
+          await tx
+            .update(emailOutbox)
+            .set({ status: "cancelled", lastError: "Offer changed; review and approve again." })
+            .where(
+              and(
+                inArray(
+                  emailOutbox.prospectId,
+                  invalidated.map((p) => p.id),
+                ),
+                eq(emailOutbox.status, "queued"),
+              ),
+            );
         for (const p of invalidated)
           await logActivity(
             tx,
@@ -173,7 +225,13 @@ export function createSalesService(db: Database, config: SalesConfig) {
         .where(eq(activities.prospectId, id))
         .orderBy(desc(activities.createdAt))
         .limit(50);
-      return { prospect, activities: history };
+      const deliveries = await db
+        .select()
+        .from(emailOutbox)
+        .where(eq(emailOutbox.prospectId, id))
+        .orderBy(desc(emailOutbox.createdAt))
+        .limit(20);
+      return { prospect, activities: history, deliveries };
     },
     async createProspect(input: ProspectInput, actor: string) {
       return db.transaction(async (tx) => {
@@ -305,8 +363,25 @@ export function createSalesService(db: Database, config: SalesConfig) {
       return db.transaction(async (tx) => {
         // A workspace lock serializes contact logging with suppression and daily-cap checks.
         await tx.execute(sql`select pg_advisory_xact_lock(713219)`);
-        const p = await lockProspect(tx, id, version);
+        const p = await lockProspect(tx, id, version, action === "suppress");
         if (action === "suppress") {
+          const [dispatching] = await tx
+            .select({ id: emailOutbox.id })
+            .from(emailOutbox)
+            .innerJoin(prospects, eq(prospects.id, emailOutbox.prospectId))
+            .where(
+              and(
+                eq(emailOutbox.status, "sending"),
+                or(
+                  eq(prospects.domain, p.domain),
+                  p.email ? eq(prospects.email, p.email) : undefined,
+                ),
+              ),
+            );
+          if (dispatching)
+            conflict(
+              "An email for this business or recipient is being dispatched. Wait for its result before suppressing it.",
+            );
           await tx
             .insert(suppressions)
             .values({
@@ -346,6 +421,19 @@ export function createSalesService(db: Database, config: SalesConfig) {
                 ),
               ),
             );
+          if (affected.length)
+            await tx
+              .update(emailOutbox)
+              .set({ status: "cancelled", lastError: "Business was suppressed." })
+              .where(
+                and(
+                  inArray(
+                    emailOutbox.prospectId,
+                    affected.map((r) => r.id),
+                  ),
+                  eq(emailOutbox.status, "queued"),
+                ),
+              );
           for (const row of affected)
             await logActivity(
               tx,
@@ -411,20 +499,17 @@ export function createSalesService(db: Database, config: SalesConfig) {
             conflict("Approve the current draft before recording a sent message.");
           if (action === "followed_up" && (p.status !== "contacted" || !p.followUpAt))
             conflict("There is no pending follow-up for this prospect.");
-          const [sent] = await tx
-            .select({ value: count() })
-            .from(activities)
-            .where(
-              and(
-                eq(activities.kind, "contacted"),
-                gte(activities.createdAt, new Date(Date.now() - 86400000)),
-              ),
-            );
-          if (sent!.value >= config.DAILY_CONTACT_LIMIT)
+          const [queued] = await tx
+            .select({ id: emailOutbox.id })
+            .from(emailOutbox)
+            .where(and(eq(emailOutbox.prospectId, p.id), eq(emailOutbox.status, "queued")));
+          if (queued) conflict("Cancel the queued email before recording a manual send.");
+          const capacity = await contactCapacity(tx, config.DAILY_CONTACT_LIMIT);
+          if (capacity.count >= config.DAILY_CONTACT_LIMIT)
             throw new AppError(
               429,
               "DAILY_LIMIT",
-              `The ${config.DAILY_CONTACT_LIMIT}-contact rolling 24-hour limit has been reached.`,
+              `The ${config.DAILY_CONTACT_LIMIT}-contact/send-attempt rolling 24-hour limit has been reached.`,
             );
           const result = await save(tx, p, {
             status: "contacted",
@@ -581,20 +666,12 @@ export function createSalesService(db: Database, config: SalesConfig) {
         .from(prospects)
         .groupBy(prospects.status);
       const counts = Object.fromEntries(grouped.map((row) => [row.status, row.value]));
-      const [due, sent] = await Promise.all([
+      const [due, capacity] = await Promise.all([
         db
           .select({ value: count() })
           .from(prospects)
           .where(and(eq(prospects.status, "contacted"), lte(prospects.followUpAt, new Date()))),
-        db
-          .select({ value: count() })
-          .from(activities)
-          .where(
-            and(
-              eq(activities.kind, "contacted"),
-              gte(activities.createdAt, new Date(Date.now() - 86400000)),
-            ),
-          ),
+        contactCapacity(db, config.DAILY_CONTACT_LIMIT),
       ]);
       return {
         total: grouped.reduce((n, row) => n + row.value, 0),
@@ -602,7 +679,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
         approved: counts.approved || 0,
         contacted: counts.contacted || 0,
         due: due[0]!.value,
-        contactedToday: sent[0]!.value,
+        contactedToday: capacity.count,
         dailyLimit: config.DAILY_CONTACT_LIMIT,
       };
     },
@@ -626,6 +703,8 @@ export function createSalesService(db: Database, config: SalesConfig) {
         monthSpent: Number(usage?.value || 0) / 1e6,
         dailyLimit: config.DAILY_CONTACT_LIMIT,
         authMode: "Private team, database membership",
+        emailSendingEnabled: config.EMAIL_SENDING_ENABLED && mailboxes(config).length > 0,
+        mailboxes: mailboxes(config).map((m) => ({ id: m.id, email: m.email })),
       };
     },
   };

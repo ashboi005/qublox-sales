@@ -4,24 +4,25 @@ Researched 5 November 2026. Merge is removed from the active application. This a
 
 ## Recommendation
 
-Start with **Groq `openai/gpt-oss-20b`** for the low-volume pilot. It is a production model on Groq, currently listed on its free plan, and has lower paid token prices than the Gemini options below. This is a cost/availability choice, not a measured writing-quality win. Evaluate a few drafts against real evidence before relying on its suggestions. Use **Gemini `gemini-2.5-flash-lite`** if its outputs work better for you; `gemini-3.1-flash-lite` is another supported choice. Groq `openai/gpt-oss-120b` is supported for a deliberate quality comparison at higher cost.
+Start with **Groq `openai/gpt-oss-20b`** for the low-volume pilot. It is a production model on Groq, currently listed on its free plan, and has lower paid token prices than the Gemini options below. This is a cost/availability choice, not a measured writing-quality win. Evaluate a few drafts against real evidence before relying on its suggestions. Use **Gemini `gemini-3.5-flash-lite`** if its outputs work better for you. Older 2.5/3.1 Lite models remain selectable for accounts that still have access. The live API rejected 2.5 for this new account and recommended 3.5. Groq `openai/gpt-oss-120b` is supported for a deliberate quality comparison at higher cost.
 
 | Model | Paid input / million tokens | Paid output / million tokens |
 | --- | ---: | ---: |
 | Groq GPT-OSS 20B | $0.075 | $0.30 |
 | Groq GPT-OSS 120B | $0.15 | $0.60 |
 | Gemini 2.5 Flash-Lite | $0.10 | $0.40 |
-| Gemini 3.1 Flash-Lite | $0.25 | $1.50 |
+| Gemini 3.1 Flash-Lite (legacy) | $0.25 | $1.50 |
+| Gemini 3.5 Flash-Lite (default Gemini option) | $0.30 | $2.50 |
 
 Sources: [Groq production models/prices](https://console.groq.com/docs/models), [Google API pricing](https://ai.google.dev/gemini-api/docs/pricing). Google lists a free tier for both Flash-Lite models; availability depends on the project/region/account. Its pricing page says free-tier inputs may be used to improve products. Send only the public business evidence and offer information you are comfortable processing there.
 
 ## Expected usage
 
-Planning assumption: 5 prospects × 22 working days = 110 initial drafts; allow 40 regenerations = **150 requests/month**. Website scraping itself makes **zero LLM calls**. Scoring and drafting happen together in one call. There are no background enrichment, classification, or follow-up-generation calls.
+Planning assumption: 10 prospects × 22 working days = 220 initial drafts; allow 80 regenerations = **300 requests/month**. Website scraping itself makes **zero LLM calls**. Scoring and drafting happen together in one call. There are no background enrichment, classification, or follow-up-generation calls.
 
-At an illustrative **2,000 input + 800 output tokens per request**, including reasoning tokens, 150 requests consume 300,000 input + 120,000 output tokens. Paid list-price estimates: **$0.059 Groq 20B**, **$0.117 Groq 120B**, **$0.078 Gemini 2.5 Lite**, or **$0.255 Gemini 3.1 Lite** per month. These are calculations, not measured usage or quotes. Qualifying free-tier requests can cost $0; a key alone does not establish free-tier eligibility or prevent billing. Regenerations and manually retried ambiguous failures add usage.
+At an illustrative **2,000 input + 800 output tokens per request**, including reasoning tokens, 300 requests consume 600,000 input + 240,000 output tokens. Paid list-price estimates: **$0.117 Groq 20B**, **$0.234 Groq 120B**, **$0.156 Gemini 2.5 Lite**, **$0.510 Gemini 3.1 Lite**, or **$0.780 Gemini 3.5 Lite** per month. These are calculations, not measured usage or quotes. Qualifying free-tier requests can cost $0; a key alone does not establish free-tier eligibility or prevent billing. Regenerations and manually retried ambiguous failures add usage.
 
-The request builder caps message JSON at 5,500 UTF-8 bytes and output at 1,600 tokens. It sends bounded offer fields and up to six short evidence excerpts. Groq uses low reasoning; Gemini 2.5 disables thinking; Gemini 3.1 uses minimal thinking. Large evidence is shortened, not sent wholesale. Every response still passes schema/evidence checks and needs human approval.
+The request builder caps message JSON at 5,500 UTF-8 bytes and output at 1,600 tokens. It sends bounded offer fields and up to six short evidence excerpts. Groq uses low reasoning; legacy Gemini 2.5 disables thinking; Gemini 3.1/3.5 use minimal thinking. Gemini uses the native generateContent API with a required object response schema; object and bounded chunk-array transport responses are normalized and thinking tokens are metered. Large evidence is shortened, not sent wholesale. Every response still passes schema/evidence checks and needs human approval.
 
 ## Setup
 
@@ -39,7 +40,7 @@ LLM_TPD=100000
 LLM_MONTHLY_BUDGET_USD=1
 ```
 
-To switch, set `LLM_PROVIDER=gemini`, `GEMINI_API_KEY=your-key`, and `LLM_MODEL=gemini-2.5-flash-lite`. An empty `LLM_MODEL` selects that provider's default. A model belonging to the wrong provider fails configuration validation. Keys stay on the server. Restart/recreate API and worker after configuration changes. Old `MERGE_*` variables are ignored and can be removed from your private configuration.
+To switch, set `LLM_PROVIDER=gemini`, `GEMINI_API_KEY=your-key`, and `LLM_MODEL=gemini-3.5-flash-lite`. An empty `LLM_MODEL` selects that provider's default. A model belonging to the wrong provider fails configuration validation. Keys stay on the server. Restart/recreate API and worker after configuration changes. Old `MERGE_*` variables are ignored and can be removed from your private configuration.
 
 ## Limits and recovery
 
@@ -54,3 +55,5 @@ The monthly ledger estimates at paid list prices even on a free tier. Unknown ou
 ## Verification boundaries
 
 Provider requests are stubbed in automated tests: no real key, credits, or outreach is used. Tests cover endpoint/key selection, bounded multilingual input, evidence validation, token prices, concurrent admissions, durable cooldowns, queued-job cancellation and ambiguous-cost reservations. A successful local test does not establish free-tier access, live model quality, or the quotas of your particular account.
+
+Live model checks on 6 November 2026: Groq GPT-OSS 20B and Gemini 3.5 Flash-Lite both returned validated score/evidence-linked JSON for a fictional workshop fixture. This is a functional check, not a quality benchmark. Google returned 404 explaining that 2.5 Lite is unavailable to new users; the supported Gemini default was updated accordingly. The optional `scripts/check-models.ts` command makes real provider calls and writes only an ignored, non-credential report in `artifacts/model-check.json`. Normal unit/integration tests and the workflow simulation still make zero LLM calls.

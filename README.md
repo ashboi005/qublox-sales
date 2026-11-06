@@ -10,8 +10,8 @@ A private sales research workspace for a small team. Built with your selected Be
 - Queue bounded public website research. Collect visible contact details, social links, page excerpts, and platform clues with source URLs and timestamps.
 - Optional direct Groq or Gemini scoring and drafting, with shared request/token limits. Drafts cite stored evidence; score zero skips the lead. Manual drafting works without an API key.
 - Split-screen evidence and draft review. Edit contacts, switch email/Instagram, save, approve, and regenerate. Edits and offer changes revoke approval; stale writes are rejected.
-- Copy an approved message or open it in your email app. Record a manual send, review seven-day follow-up reminders, log replies, close conversations, and suppress businesses.
-- Default shared limit of five recorded contacts per rolling 24 hours. Approval never sends anything.
+- Send an approved email through configured Gmail accounts now, or schedule a reviewed batch. Manual copy/email-app sending remains available. Review seven-day follow-up reminders, log replies and suppress businesses.
+- Default shared limit of ten contacts/send attempts per rolling 24 hours, across all accounts. Approval alone never sends anything.
 
 The [build-vs-buy research](docs/research/2026-11-05-build-vs-buy.md) and [implementation specification](docs/spec.md) are preserved.
 
@@ -47,7 +47,7 @@ The root `.env` supplies root commands and Docker; app-specific `.env.local` fil
 2. Add a prospect or import a JSON array containing up to 100 records below 850 KB. The extension's `name`, `website`, `phone`, `address`, `url`, and `scrapedAt` fields are supported. Invalid rows are reported; duplicates are skipped.
 3. Open the prospect and select **Research website**. The worker gathers the home page and up to three relevant pages. You can also add observations manually from a public source.
 4. Choose the offer and recipient/channel. Generate a draft when an AI provider is configured, or write one yourself, selecting supporting sources and a signal score.
-5. Save, review, and approve the exact saved version. Send from your own mailbox or Instagram. Select **Mark as sent** only after sending.
+5. Save, review, and approve the exact saved version. Choose Gmail delivery or schedule a reviewed batch; see [Gmail setup](docs/gmail.md). Manual email and Instagram remain available; select **Mark as sent** only after sending manually.
 6. Use **Follow-ups** for reminders. Mark replies or add opt-outs to the do-not-contact list.
 
 ## Maps extension
@@ -75,9 +75,13 @@ LLM_TPD=100000
 LLM_MONTHLY_BUDGET_USD=1
 ```
 
-For Gemini, set `LLM_PROVIDER=gemini`, `GEMINI_API_KEY=your-key`, and `LLM_MODEL=gemini-2.5-flash-lite`. Restart API and worker. Keys stay on the server. Set allowances at or below your actual account quotas. Queued work waits for capacity; use **Cancel queued work** to write manually during a long cooldown.
+For Gemini, set `LLM_PROVIDER=gemini`, `GEMINI_API_KEY=your-key`, and `LLM_MODEL=gemini-3.5-flash-lite`. Restart API and worker. Keys stay on the server. Set allowances at or below your actual account quotas. Queued work waits for capacity; use **Cancel queued work** to write manually during a long cooldown.
 
-Five prospects per working day plus regenerations is about 150 model calls/month. At an illustrative 2,000 input and 800 output tokens per call, paid list-price estimates are about $0.06/month on Groq 20B or $0.08/month on Gemini 2.5 Flash-Lite. Eligible free-tier calls may cost $0. The app estimates at paid prices regardless of account tier and cannot establish your provider bill or guarantee a spending cap. Scraping makes no LLM calls. Provider access and live output quality remain untested without your key; automated tests spend no credits.
+Ten prospects per working day plus regenerations is about 300 model calls/month. At an illustrative 2,000 input and 800 output tokens per call, paid list-price estimates are about $0.12/month on Groq 20B or $0.78/month on Gemini 3.5 Flash-Lite. Eligible free-tier calls may cost $0. The app estimates at paid prices regardless of account tier and cannot establish your provider bill or guarantee a spending cap. Scraping makes no LLM calls. Provider access and live output quality remain untested without your key; automated tests spend no credits.
+
+## Gmail sending
+
+See [Gmail setup and scheduling](docs/gmail.md). Sending is disabled until configured. Use Gmail App Passwords with 2-Step Verification, select one sender or a pool, and queue only reviewed approved drafts. No extra outreach platform is required. Unknown SMTP outcomes require checking Gmail Sent before an explicit retry.
 
 ## VPS deployment
 
@@ -99,7 +103,7 @@ bun run db:start
 bun run simulate
 ```
 
-This exercises private login, import/duplicates/invalid rows, actual public demo-site research, evidence-linked manual drafting, approval invalidation, simulated contact, due follow-up, reply, and suppression through the HTTP API. It uses only local PostgreSQL at port 5438 and resets the dedicated **`qublox_sales_simulation`** database. It never uses the production `DATABASE_URL`, sends no outreach and makes no LLM calls. The ignored report is `artifacts/workflow-simulation.json`. It requires the generated local `POSTGRES_PASSWORD`; it is a local development check, not a command to point at your VPS.
+This exercises private login, import/duplicates/invalid rows, actual public demo-site research, evidence-linked manual drafting, approval invalidation, simulated contact, due follow-up, reply, suppression and fake SMTP acceptance through the HTTP API. It uses only local PostgreSQL at port 5438 and resets the dedicated **`qublox_sales_simulation`** database. It never uses the production `DATABASE_URL`, sends no outreach and makes no LLM calls. The ignored report is `artifacts/workflow-simulation.json`. It requires the generated local `POSTGRES_PASSWORD`; it is a local development check, not a command to point at your VPS.
 
 ## Checks
 
@@ -119,6 +123,6 @@ Integration tests create and truncate only the isolated `qublox_sales_test` data
 
 Research reads public HTML without executing JavaScript. It does not log into social accounts, scrape Instagram, render website screenshots, measure a brand's visual aesthetic, read arbitrary client bundles, or claim a product is a bestseller. Blocked and JavaScript-dependent sites need manual source observations. Platform detection is an indication from public assets, not a complete backend inspection.
 
-Contact discovery is not mailbox verification. Scraped and imported emails remain **unverified**; no enrichment database or verifier is connected. Email/DM delivery is manual, and no inbox-placement claim is made. Niche sourcing uses the integrated Maps extension and manual additions; there is no paid search provider or automated inbox rotation.
+Contact discovery is not mailbox verification. Scraped and imported emails remain **unverified**; no enrichment database or verifier is connected. Gmail delivery is optional and explicit; Instagram and follow-ups remain manual. No inbox-placement claim is made. Niche sourcing uses the integrated Maps extension and manual additions; there is no paid lead-search provider or automatic reply synchronization.
 
 This is one shared team workspace. Team members can access all prospects and offers. A multi-client permissions system, automatic sending, reply synchronization, and deliverability monitoring would need another implementation slice.

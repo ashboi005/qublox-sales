@@ -82,6 +82,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
               ["/", "Prospects"],
               ["/campaigns", "Offers"],
               ["/follow-ups", "Follow-ups"],
+              ["/outbox", "Outbox"],
               ["/settings", "Settings"],
             ] as const
           ).map(([href, label]) => (

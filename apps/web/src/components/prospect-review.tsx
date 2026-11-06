@@ -1,4 +1,5 @@
 "use client";
+import { ProspectDelivery } from "./email-delivery";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Copy, Mail, RefreshCw, Search } from "lucide-react";
@@ -34,6 +35,12 @@ export function ProspectReview({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const p = detail.data?.prospect;
+  const deliveries = detail.data?.deliveries || [];
+  const pendingDelivery = deliveries.find((d) =>
+    ["queued", "sending", "uncertain"].includes(d.status),
+  );
+  const deliveryLocked =
+    pendingDelivery?.status === "sending" || pendingDelivery?.status === "uncertain";
   useEffect(() => {
     if (p && !active(p))
       setNotice((value) =>
@@ -43,10 +50,10 @@ export function ProspectReview({ id }: { id: string }) {
       );
   }, [p]);
   useEffect(() => {
-    if (!p || !active(p) || dirty) return;
+    if (!p || (!active(p) && !pendingDelivery) || dirty) return;
     const interval = setInterval(detail.reload, 2500);
     return () => clearInterval(interval);
-  }, [p, dirty, detail.reload]);
+  }, [p, dirty, pendingDelivery, detail.reload]);
   const write: Write = async (suffix, body, method = "POST", success = "Saved.") => {
     setBusy(true);
     setError("");
@@ -55,7 +62,11 @@ export function ProspectReview({ id }: { id: string }) {
       const prospect = await api(`/prospects/${id}${suffix}`, prospectSchema, { method, body });
       setDirty(false);
       setEditing(null);
-      detail.setData((previous) => ({ prospect, activities: previous?.activities || [] }));
+      detail.setData((previous) => ({
+        prospect,
+        activities: previous?.activities || [],
+        deliveries: previous?.deliveries || [],
+      }));
       detail.reload();
       setNotice(success);
       return true;
@@ -73,7 +84,7 @@ export function ProspectReview({ id }: { id: string }) {
       { version: p.version, action: value },
       "POST",
       value === "approve"
-        ? "This version is approved. You can now open your email app or copy the message."
+        ? "This version is approved. Choose Gmail delivery or send it manually."
         : value === "contacted" || value === "followed_up"
           ? "Manual contact recorded."
           : "Activity recorded.",
@@ -88,7 +99,7 @@ export function ProspectReview({ id }: { id: string }) {
       <Loading label="Opening prospect…" />
     );
   const editable = !terminal.has(p.status);
-  const working = active(p);
+  const working = active(p) || deliveryLocked;
   const campaign = offers.data?.find((c) => c.id === p.campaignId);
   const approved = p.status === "approved" && p.approvalVersion === p.version;
   const canApprove =
@@ -192,7 +203,7 @@ export function ProspectReview({ id }: { id: string }) {
         </Notice>
       )}
       {notice && <Notice>{notice}</Notice>}
-      {working && (
+      {active(p) && (
         <Notice>
           <span role="status">
             {p.researchStatus === "queued" || p.researchStatus === "running"
@@ -399,7 +410,16 @@ export function ProspectReview({ id }: { id: string }) {
               approving it.
             </Notice>
           )}
-          {approved && !dirty && (
+          {settings.data && (
+            <ProspectDelivery
+              p={p}
+              deliveries={deliveries}
+              settings={settings.data}
+              reload={detail.reload}
+              disabled={busy || dirty || active(p)}
+            />
+          )}
+          {approved && !dirty && !pendingDelivery && (
             <div className="source">
               <h3>Ready for your manual send.</h3>
               <p className="muted">
@@ -781,7 +801,7 @@ function DraftEditor({
             </button>
             <p className="hint">
               {p.campaignId
-                ? "Saving clears approval. Nothing is sent from this workspace."
+                ? "Saving clears approval and cancels queued copies. Review and approve again before sending."
                 : "Choose and save an offer above before drafting."}
             </p>
           </div>

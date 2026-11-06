@@ -87,21 +87,26 @@ function Settings() {
             <div>
               <dt>Contact limit</dt>
               <dd>
-                {s.dailyLimit} recorded contacts per rolling 24 hours
+                {s.dailyLimit} contacts/send attempts per rolling 24 hours
                 <p>
-                  Shared by the team, across first contacts and follow-ups. This is a workload
-                  limit; it does not guarantee inbox delivery or control what you send outside this
-                  workspace.
+                  Shared by the team and all Gmail accounts. In-flight, uncertain and rejected SMTP
+                  attempts reserve an allowance too. This is a workload limit; it does not guarantee
+                  inbox delivery or control what you send outside this workspace.
                 </p>
               </dd>
             </div>
             <div>
               <dt>Email delivery</dt>
               <dd>
-                Manual · your existing mailbox
+                {s.emailSendingEnabled
+                  ? "Gmail sending enabled"
+                  : "Gmail sending disabled · manual sending available"}
                 <p>
-                  Approval gives you a copy button and an email-app link. This app does not send
-                  email, rotate inboxes, or guarantee spam placement.
+                  Approve the exact draft, then send now or schedule a reviewed batch. Configured
+                  sender accounts:{" "}
+                  {s.mailboxes.length ? s.mailboxes.map((m) => m.email).join(", ") : "none"}.
+                  Configuration does not verify the Gmail connection or guarantee inbox placement.
+                  Copy and email-app controls remain available when no email is pending.
                 </p>
               </dd>
             </div>
