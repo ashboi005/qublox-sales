@@ -25,6 +25,10 @@ const schema = z
         z.enum(["true", "false"]).default("false"),
       )
       .transform((v) => v === "true"),
+    // Google Places API (New) key for "Find leads". Empty uses OpenStreetMap instead.
+    GOOGLE_PLACES_API_KEY: z.string().default(""),
+    // Stays under Google's 1,000 free Text Search Enterprise requests a month.
+    PLACES_MONTHLY_REQUEST_LIMIT: z.coerce.number().int().min(0).max(100000).default(900),
     // Also the key source for encrypting stored Gmail App Passwords.
     BETTER_AUTH_SECRET: z.string().default(""),
     COMPANY_NAME: z

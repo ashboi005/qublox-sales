@@ -13,7 +13,7 @@ Nothing is ever sent just because a draft exists or was approved. Sending is alw
 | Term | What it means |
 |---|---|
 | **Prospect** (or lead) | One business you might contact. |
-| **Offer** (was "campaign") | What you are pitching to a group, e.g. "WhatsApp booking site for clinics". Every draft is written against one offer. Make one offer per niche per month. |
+| **Offer** (was "campaign"; **Polish with AI** on the Offers page tidies a rough one) | What you are pitching to a group, e.g. "WhatsApp booking site for clinics". Every draft is written against one offer. Make one offer per niche per month. |
 | **Evidence** | Facts about the business with a source link: website text, platform clues (Shopify, WordPress), its Google Maps listing, or a note you add. The AI may only use evidence. |
 | **Research** | The app reading the business's public website: homepage plus contact/about pages. It collects emails, phones, WhatsApp links, Instagram and page text. |
 | **Signal score 0–3** | How strong the reason to reach out is. 0 = nothing useful (skipped, no message), 1 = a relevant fact, 2 = a specific likely need, 3 = a clear need or request. |
@@ -37,9 +37,9 @@ Top navigation:
 
 ## The scraper: where it is and what it does
 
-There are two parts.
+There are two parts, and the first one is now a button in the portal.
 
-1. **Finding businesses: the Maps extension** (`apps/maps-extension`). Load it in Chrome or Brave as an unpacked extension, search Google Maps (for example "dentists in Pune"), and let it collect the result cards: name, phone, website, address, rating and review count. Then type your workspace address (e.g. `https://sales.qubloxhq.com`) in the extension and click **Send to Qublox**. The app opens a **Review your Maps collection** preview, and nothing is imported until you pick an offer and click **Confirm import**. Install steps are in `apps/maps-extension/README.md`; the app also offers the extension as a ZIP download. You can also paste or upload its JSON with **Import JSON**.
+1. **Finding businesses: Prospects → Find leads.** Type the kind of business ("clothing stores") and the place ("Amritsar"), pick how many and an offer, and click **Find leads**. It uses Google Places when the server has a key (best), or OpenStreetMap for free (few contacts). See `docs/lead-search.md`. The Maps Chrome extension (Prospects → Import file) is still available as an optional alternative.
 2. **Finding contacts: website research** (runs on the server). For each business with a website it reads the homepage and up to three contact/about pages, and tries `/contact` when none is linked. It pulls emails, including Cloudflare-hidden and "name [at] site" ones, phones and WhatsApp links. It respects robots.txt and never logs in. On a 20-site real sample it found an email on 70% of sites and an email or phone on 85% (see `docs/research/2026-11-06-scraper-hit-rate.md`).
 
 Businesses **without a website** still import if they have a phone, email or Instagram. Their Maps listing becomes the evidence, for example "No website is listed", which is itself a good reason to pitch a website. Their channel defaults to WhatsApp.
@@ -47,8 +47,8 @@ Businesses **without a website** still import if they have a phone, email or Ins
 ## Day-to-day flow
 
 1. **Set up once (admin).** Create an offer under Offers. Add teammates with `bun run team:add`. Each teammate signs in, changes their password, and connects their Gmail under Settings.
-2. **Collect leads.** Use the Maps extension, then confirm the import and choose the offer. Or click **Add prospect** for one business; only the name and one contact method are required.
-3. **Let it work.** With an offer chosen, the app researches each website automatically and then asks the AI for a draft. This is `AUTO_PIPELINE`, on by default. Leads without a website go straight to drafting. Watch the status change on the Prospects list.
+2. **Collect leads.** Click **Find leads** on Prospects, type the niche and city, choose the offer. Or **Add one** for a single business (name plus one contact method), or **Import file** for an extension export.
+3. **Let it work.** With an offer chosen (in Find leads, Add one or Import), the app researches each website automatically and then asks the AI for a draft. This is `AUTO_PIPELINE`, on by default. Leads without a website go straight to drafting. Watch the status change on the Prospects list.
 4. **Review** (Prospects → **To review**, open a lead). The left side shows the evidence; the right side shows the draft. Edit anything, check the style hints, check the recipient and channel, then **Approve saved version**. Skip leads with no good angle.
 5. **Send.**
    - **Email**: on the lead, pick your Gmail and **Send now**. For many at once, use **Schedule reviewed emails** on Prospects to spread them across a time window.

@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Upload, ArrowRight, Search } from "lucide-react";
 import { listSchema, overviewSchema, statuses } from "@qublox-sales/shared";
 import { Workspace, Loading, Empty, Notice, Status } from "@/components/workspace";
 import { campaignsSchema, ProspectEntry } from "@/components/prospect-entry";
 import { BulkEmailQueue } from "@/components/email-delivery";
 import { MapsImport } from "@/components/maps-import";
+import { FindLeads } from "@/components/find-leads";
 import { useResource } from "@/lib/use-resource";
 import { date } from "@/lib/api";
 
@@ -23,7 +24,7 @@ function Prospects() {
   const [status, setStatus] = useState("");
   const [campaign, setCampaign] = useState("");
   const [page, setPage] = useState(1);
-  const [entry, setEntry] = useState<"add" | "import" | null>(null);
+  const [entry, setEntry] = useState<"add" | "import" | "find" | null>(null);
   const query = new URLSearchParams({
     page: String(page),
     ...(search ? { q: search } : {}),
@@ -37,6 +38,18 @@ function Prospects() {
     list.reload();
     overview.reload();
   };
+  // While research or drafting is running for visible leads, refresh so progress shows.
+  const working = list.data?.data.some((p) =>
+    [p.researchStatus, p.draftStatus].some((s) => s === "queued" || s === "running"),
+  );
+  useEffect(() => {
+    if (!working) return;
+    const timer = setInterval(() => {
+      list.reload();
+      overview.reload();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [working, list.reload, overview.reload]);
   return (
     <>
       <div className="page-head">
@@ -47,11 +60,15 @@ function Prospects() {
         <div className="actions">
           <button onClick={() => setEntry(entry === "import" ? null : "import")}>
             <Upload size={16} />
-            Import JSON
+            Import file
           </button>
-          <button className="primary" onClick={() => setEntry(entry === "add" ? null : "add")}>
+          <button onClick={() => setEntry(entry === "add" ? null : "add")}>
             <Plus size={17} />
-            Add prospect
+            Add one
+          </button>
+          <button className="primary" onClick={() => setEntry(entry === "find" ? null : "find")}>
+            <Search size={17} />
+            Find leads
           </button>
         </div>
       </div>
@@ -82,7 +99,10 @@ function Prospects() {
           </div>
         ))}
       </div>
-      {entry && (
+      {entry === "find" && (
+        <FindLeads campaigns={offers.data || []} onDone={reload} onClose={() => setEntry(null)} />
+      )}
+      {(entry === "add" || entry === "import") && (
         <ProspectEntry
           mode={entry}
           campaigns={offers.data || []}
@@ -186,7 +206,7 @@ function Prospects() {
         <Notice error>
           {list.error} <button onClick={list.reload}>Try again</button>
         </Notice>
-      ) : list.loading ? (
+      ) : list.loading && !list.data ? (
         <Loading label="Loading prospects…" />
       ) : !list.data?.data.length ? (
         <Empty
@@ -249,6 +269,13 @@ function Prospects() {
                     <td>{p.score === null ? "—" : `${p.score} / 3`}</td>
                     <td>
                       <Status value={p.status} />
+                      {["queued", "running"].includes(p.researchStatus) ? (
+                        <small>Researching website…</small>
+                      ) : ["queued", "running"].includes(p.draftStatus) ? (
+                        <small>Writing draft…</small>
+                      ) : p.researchStatus === "failed" || p.draftStatus === "failed" ? (
+                        <small>Needs a look</small>
+                      ) : null}
                     </td>
                     <td className="muted">
                       {date(p.contactedAt)}

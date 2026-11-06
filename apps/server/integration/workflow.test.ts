@@ -16,7 +16,13 @@ import type { Campaign, Prospect } from "@qublox-sales/shared";
 import { createSalesService } from "../src/sales";
 import { claimJob, processJob } from "../src/jobs";
 import { generateDraft } from "../src/llm";
-import { jobs, llmUsage, llmProviderState, prospects } from "@qublox-sales/db/schema/sales";
+import {
+  jobs,
+  leadSearches,
+  llmUsage,
+  llmProviderState,
+  prospects,
+} from "@qublox-sales/db/schema/sales";
 import { eq } from "drizzle-orm";
 import { prospectInput } from "@qublox-sales/shared";
 
@@ -1118,4 +1124,87 @@ test("polish with AI suggests a cleaner offer without saving it, through the pac
   expect(data.suggestion.callToAction).toBe("Want me to send a couple of examples?");
   expect(data.suggestion.offer).not.toContain("—");
   expect((await db.select().from(llmUsage)).length).toBe(1);
+});
+
+test("Find leads imports Places results with listing evidence, queues research and tracks the allowance", async () => {
+  await db.delete(leadSearches);
+  const { data: offer } = await request<Campaign>("/api/campaigns", "POST", {
+    name: "Stores",
+    audience: "Clothing stores",
+    offer: "Online store",
+    proof: "",
+    callToAction: "Want examples?",
+  });
+  const finder = createApp({
+    db,
+    auth,
+    origin,
+    config: salesConfig({
+      ...config,
+      AUTO_PIPELINE: true,
+      GOOGLE_PLACES_API_KEY: "test-key",
+      PLACES_MONTHLY_REQUEST_LIMIT: 2,
+    }),
+    fetchPlaces: async () =>
+      Response.json({
+        places: [
+          {
+            id: "p1",
+            displayName: { text: "Finder Fabrics" },
+            websiteUri: "https://finder-fabrics.example/",
+            internationalPhoneNumber: "+91 98111 22222",
+            googleMapsUri: "https://maps.google.com/?cid=91",
+            rating: 4.1,
+            userRatingCount: 30,
+          },
+          {
+            id: "p2",
+            displayName: { text: "Finder Tailors" },
+            internationalPhoneNumber: "+91 98111 33333",
+            googleMapsUri: "https://maps.google.com/?cid=92",
+          },
+        ],
+      }),
+  });
+  const run = async () => {
+    const response = await finder.handle(
+      new Request(`${origin}/api/lead-searches`, {
+        method: "POST",
+        headers: { Origin: origin, Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          what: "clothing stores",
+          where: "Amritsar",
+          limit: 20,
+          campaignId: offer.id,
+        }),
+      }),
+    );
+    return { status: response.status, data: (await response.json()) as Record<string, unknown> };
+  };
+  const first = await run();
+  expect(first.status).toBe(200);
+  expect(first.data).toMatchObject({ provider: "google", found: 2, added: 2, requests: 1 });
+  const [site] = await db
+    .select()
+    .from(prospects)
+    .where(eq(prospects.domain, "finder-fabrics.example"));
+  expect(site).toMatchObject({ researchStatus: "queued", campaignId: offer.id });
+  expect(site!.evidence[0]).toMatchObject({ kind: "listing", title: "Google Maps listing" });
+  const second = await run();
+  expect(second.data).toMatchObject({ added: 0, duplicates: 2 });
+  const third = await run();
+  expect(third.status).toBe(429);
+  const history = await request<unknown[]>("/api/lead-searches");
+  expect(history.data).toHaveLength(2);
+  await db.update(jobs).set({ status: "cancelled" });
+});
+
+test("polishing an incomplete offer reports the missing field, not an AI failure", async () => {
+  const { response, data } = await request<{ error: { code: string } }>(
+    "/api/campaigns/polish",
+    "POST",
+    { name: "x" },
+  );
+  expect(response.status).toBe(422);
+  expect(data.error.code).toBe("VALIDATION");
 });

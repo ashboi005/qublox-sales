@@ -137,3 +137,24 @@ export const llmProviderState = pgTable("llm_provider_state", {
   provider: text("provider").primaryKey(),
   blockedUntil: timestamp("blocked_until").notNull(),
 });
+
+// One row per "Find leads" run, for history and the monthly Places allowance.
+export const leadSearches = pgTable(
+  "lead_search",
+  {
+    id: text("id").primaryKey(),
+    what: text("what").notNull(),
+    location: text("location").notNull(),
+    provider: text("provider").$type<"google" | "openstreetmap">().notNull(),
+    requests: integer("requests").notNull().default(0),
+    found: integer("found").notNull().default(0),
+    added: integer("added").notNull().default(0),
+    duplicates: integer("duplicates").notNull().default(0),
+    skipped: integer("skipped").notNull().default(0),
+    campaignId: text("campaign_id").references(() => campaigns.id, { onDelete: "set null" }),
+    actor: text("actor").notNull(),
+    error: text("error").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("lead_search_created_idx").on(table.createdAt)],
+);

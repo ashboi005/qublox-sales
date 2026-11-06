@@ -139,18 +139,21 @@ export function listingEvidence(
   const rating = text(row.rating),
     reviews = text(row.reviews),
     category = text(row.category);
+  const osm = p.sourceUrl.includes("openstreetmap.org");
   const facts = [
-    `Google Maps listing for ${p.name}.`,
+    `${osm ? "OpenStreetMap" : "Google Maps"} listing for ${p.name}.`,
     category && `Category: ${category}.`,
     rating && `Rating ${rating}${reviews ? ` from ${reviews} reviews` : ""}.`,
     p.address && `Address: ${p.address}.`,
     p.phone ? "A phone number is listed." : "No phone number is listed.",
-    p.website ? `Website listed: ${p.website}` : "No website is listed on the Maps profile.",
+    p.website
+      ? `Website listed: ${p.website}`
+      : `No website is listed on the ${osm ? "OpenStreetMap" : "Maps"} profile.`,
   ].filter(Boolean);
   return {
     id: newId(),
     url: p.sourceUrl,
-    title: "Google Maps listing",
+    title: osm ? "OpenStreetMap listing" : "Google Maps listing",
     text: facts.join(" ").slice(0, 3000),
     kind: "listing",
     retrievedAt: (p.sourceCapturedAt ? new Date(p.sourceCapturedAt) : new Date()).toISOString(),

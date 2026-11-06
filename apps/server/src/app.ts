@@ -20,6 +20,7 @@ import { createMailboxService, type Viewer } from "./mailboxes";
 import { mailboxInput } from "./mail-config";
 import type { VerifyMailbox } from "./gmail";
 import { polishOffer } from "./offer-polish";
+import { leadSearchInput, leadSearchService, type Fetcher } from "./discovery";
 import { LlmDeferred } from "./llm-provider";
 
 export function createApp(options: {
@@ -29,11 +30,18 @@ export function createApp(options: {
   config: SalesConfig;
   verifyMailbox?: VerifyMailbox;
   fetchModel?: (url: string, init: RequestInit) => Promise<Response>;
+  fetchPlaces?: Fetcher;
 }) {
   const { db, auth, origin, config } = options;
   const sales = createSalesService(db, config);
   const delivery = createDeliveryService(db, config);
   const senders = createMailboxService(db, config, options.verifyMailbox);
+  const leads = leadSearchService(
+    db,
+    config,
+    (records, campaignId, actor) => sales.importRecords(records, campaignId, actor),
+    options.fetchPlaces,
+  );
   const id = (value: string) => z.uuid().parse(value);
   return new Elysia({ serve: { maxRequestBodySize: 1024 * 1024 } })
     .onError(({ error, set, code }) => {
@@ -115,8 +123,9 @@ export function createApp(options: {
           return sales.createCampaign(campaignInput.parse(body));
         })
         .post("/campaigns/polish", async ({ body }) => {
+          const draft = campaignInput.parse(body);
           try {
-            return await polishOffer(db, config, campaignInput.parse(body), options.fetchModel);
+            return await polishOffer(db, config, draft, options.fetchModel);
           } catch (error) {
             if (error instanceof LlmDeferred)
               throw new AppError(
@@ -199,6 +208,8 @@ export function createApp(options: {
             .parse(body);
           return sales.importRecords(input.records, input.campaignId, actor);
         })
+        .get("/lead-searches", () => leads.recent())
+        .post("/lead-searches", ({ body, actor }) => leads.run(leadSearchInput.parse(body), actor))
         .get("/deliveries", () => delivery.list())
         .post("/deliveries", ({ body, viewer }) =>
           delivery.queue(queueEmailInput.parse(body), viewer),
@@ -233,7 +244,12 @@ export function createApp(options: {
           );
         })
         .get("/overview", () => sales.overview())
-        .get("/settings", ({ viewer }) => sales.settings(viewer))
+        .get("/settings", async ({ viewer }) => ({
+          ...(await sales.settings(viewer)),
+          leadSearchProvider: leads.provider(),
+          placesRequestsThisMonth: await leads.placesUsed(),
+          placesMonthlyLimit: config.PLACES_MONTHLY_REQUEST_LIMIT,
+        }))
         .get("/mailboxes", ({ viewer }) => senders.list(viewer))
         .put("/mailboxes/me", ({ body, viewer }) =>
           senders.connect(viewer, mailboxInput.parse(body)),

@@ -298,6 +298,9 @@ export const settingsSchema = z.object({
   emailSendingEnabled: z.boolean(),
   sendingSwitch: z.boolean(),
   autoPipeline: z.boolean(),
+  leadSearchProvider: z.enum(["google", "openstreetmap"]).default("openstreetmap"),
+  placesRequestsThisMonth: z.number().default(0),
+  placesMonthlyLimit: z.number().default(0),
   mailboxes: z.array(mailboxSchema),
   role: z.enum(["admin", "member"]),
   companyName: z.string(),
@@ -305,3 +308,19 @@ export const settingsSchema = z.object({
 
 export * from "./message";
 export * from "./contact";
+export const leadSearchSchema = z.object({
+  id: z.string(),
+  what: z.string(),
+  location: z.string(),
+  provider: z.enum(["google", "openstreetmap"]),
+  requests: z.number(),
+  found: z.number(),
+  added: z.number(),
+  duplicates: z.number(),
+  skipped: z.number(),
+  campaignId: z.string().nullable(),
+  actor: z.string(),
+  error: z.string(),
+  createdAt: z.string(),
+});
+export type LeadSearch = z.infer<typeof leadSearchSchema>;

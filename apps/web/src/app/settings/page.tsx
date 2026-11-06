@@ -54,6 +54,19 @@ function Settings() {
               </dd>
             </div>
             <div>
+              <dt>Find leads</dt>
+              <dd>
+                {s.leadSearchProvider === "google"
+                  ? `Google Places · ${s.placesRequestsThisMonth} / ${s.placesMonthlyLimit} searches this month`
+                  : "OpenStreetMap (free fallback)"}
+                <p>
+                  {s.leadSearchProvider === "google"
+                    ? "Each search returns up to 20 businesses with phone, website and rating. Google gives about 1,000 searches a month free; the cap keeps you under that."
+                    : "Works without a key, but few Indian businesses on OpenStreetMap list a phone or website. Add GOOGLE_PLACES_API_KEY on the server for full results (see docs/lead-search.md)."}
+                </p>
+              </dd>
+            </div>
+            <div>
               <dt>Website research</dt>
               <dd>
                 <Status value="ready" />
