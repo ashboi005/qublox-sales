@@ -17,13 +17,13 @@
     "drizzle-orm": "catalog:",
     "pg": "^8.23.0",
     "zod": "catalog:",
-    "@qublox-sales/shared": "workspace:*"
+    "@qublox-sales/shared": "workspace:*",
+    "drizzle-kit": "1.0.0-rc.5",
+    "varlock": "catalog:"
   },
   "devDependencies": {
     "@qublox-sales/config": "workspace:*",
     "@types/pg": "^8.23.1",
-    "drizzle-kit": "1.0.0-rc.5",
-    "typescript": "catalog:",
-    "varlock": "catalog:"
+    "typescript": "catalog:"
   }
 }

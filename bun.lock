@@ -94,16 +94,16 @@
       "name": "@qublox-sales/db",
       "dependencies": {
         "@qublox-sales/shared": "workspace:*",
+        "drizzle-kit": "1.0.0-rc.5",
         "drizzle-orm": "catalog:",
         "pg": "^8.23.0",
+        "varlock": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
         "@qublox-sales/config": "workspace:*",
         "@types/pg": "^8.23.1",
-        "drizzle-kit": "1.0.0-rc.5",
         "typescript": "catalog:",
-        "varlock": "catalog:",
       },
     },
     "packages/shared": {
