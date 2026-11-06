@@ -56,6 +56,7 @@ try {
   const config = salesConfig({
     DAILY_CONTACT_LIMIT: 10,
     EMAIL_SENDING_ENABLED: true,
+    AUTO_PIPELINE: false,
     BETTER_AUTH_SECRET: authConfig.BETTER_AUTH_SECRET,
   });
   const auth = createAuth(authConfig, db);

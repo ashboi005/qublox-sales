@@ -297,6 +297,7 @@ export const settingsSchema = z.object({
   authMode: z.string(),
   emailSendingEnabled: z.boolean(),
   sendingSwitch: z.boolean(),
+  autoPipeline: z.boolean(),
   mailboxes: z.array(mailboxSchema),
   role: z.enum(["admin", "member"]),
   companyName: z.string(),

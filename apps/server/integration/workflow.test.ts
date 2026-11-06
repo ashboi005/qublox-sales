@@ -27,6 +27,7 @@ const origin = "http://localhost:3001";
 const config = salesConfig({
   LLM_MONTHLY_BUDGET_USD: 5,
   DAILY_CONTACT_LIMIT: 1,
+  AUTO_PIPELINE: false,
   BETTER_AUTH_SECRET: "integration-test-only-secret-at-least-thirty-two-characters",
 });
 const checkedLogins: string[] = [];
@@ -979,4 +980,54 @@ test("WhatsApp approval needs a number whose country can be determined", async (
   );
   expect(blocked.response.status).toBe(422);
   expect(blocked.data.error.message).toContain("country code");
+});
+
+test("automatic pipeline researches a new lead, then queues its draft without clicks", async () => {
+  const auto = salesConfig({ ...config, AUTO_PIPELINE: true, GROQ_API_KEY: "fake-key" });
+  const sales = createSalesService(db, auto);
+  await db.update(jobs).set({ status: "cancelled" });
+  const offer = await sales.createCampaign({
+    name: "Auto",
+    audience: "Cafes",
+    offer: "Online ordering",
+    proof: "",
+    callToAction: "Worth a look?",
+  });
+  const p = await sales.createProspect(
+    prospectInput.parse({ name: "Auto Cafe", website: "auto-cafe.example", campaignId: offer.id }),
+    "test",
+  );
+  expect(p.researchStatus).toBe("queued");
+  const research = await claimJob(db);
+  expect(research).toMatchObject({ kind: "research", prospectId: p.id });
+  await processJob(db, auto, research!, {
+    research: async () => ({
+      summary: "Cafe",
+      platform: "Unknown",
+      emails: ["hello@auto-cafe.example"],
+      phones: [],
+      socials: [],
+      evidence: [
+        {
+          id: crypto.randomUUID(),
+          url: "https://auto-cafe.example",
+          title: "Menu",
+          text: "Order by phone only.",
+          kind: "website",
+          retrievedAt: new Date().toISOString(),
+        },
+      ],
+      warnings: [],
+    }),
+  });
+  const [after] = await db.select().from(prospects).where(eq(prospects.id, p.id));
+  expect(after).toMatchObject({ researchStatus: "complete", draftStatus: "queued" });
+  const draft = await claimJob(db);
+  expect(draft).toMatchObject({ kind: "draft", prospectId: p.id, inputVersion: after!.version });
+  await db.update(jobs).set({ status: "cancelled" }).where(eq(jobs.id, draft!.id));
+  const manual = await sales.createProspect(
+    prospectInput.parse({ name: "No offer yet", website: "no-offer.example" }),
+    "test",
+  );
+  expect(manual.researchStatus).toBe("idle");
 });

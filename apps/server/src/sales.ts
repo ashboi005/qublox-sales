@@ -327,6 +327,34 @@ export function createSalesService(db: Database, config: SalesConfig) {
           input.sourceUrl ? "Imported with source provenance." : "Added to the workspace.",
           actor,
         );
+        const auto =
+          config.AUTO_PIPELINE && p.campaignId
+            ? p.website
+              ? ("research" as const)
+              : p.evidence.length && providerFor(config).key
+                ? ("draft" as const)
+                : null
+            : null;
+        if (auto) {
+          await tx
+            .insert(jobs)
+            .values({ id: newId(), prospectId: p.id, kind: auto, inputVersion: p.version });
+          const [queued] = await tx
+            .update(prospects)
+            .set(auto === "research" ? { researchStatus: "queued" } : { draftStatus: "queued" })
+            .where(eq(prospects.id, p.id))
+            .returning();
+          Object.assign(p, queued);
+          await logActivity(
+            tx,
+            p.id,
+            `${auto}_queued`,
+            auto === "research"
+              ? "Website research queued automatically."
+              : "Draft queued automatically from the listing.",
+            "Research assistant",
+          );
+        }
         return p;
       });
     },
@@ -810,6 +838,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
         authMode: "Private team, database membership",
         emailSendingEnabled: config.EMAIL_SENDING_ENABLED && senders.length > 0,
         sendingSwitch: config.EMAIL_SENDING_ENABLED,
+        autoPipeline: config.AUTO_PIPELINE,
         mailboxes: senders,
         role: viewer.admin ? ("admin" as const) : ("member" as const),
         companyName: config.COMPANY_NAME,

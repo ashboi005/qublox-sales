@@ -41,6 +41,17 @@ function Settings() {
               </dd>
             </div>
             <div>
+              <dt>Automation</dt>
+              <dd>
+                {s.autoPipeline ? "On" : "Off"}
+                <p>
+                  {s.autoPipeline
+                    ? `New leads with an offer are researched automatically, then drafted${s.aiConfigured ? "" : " once an AI key is set"}. You still review and approve every message.`
+                    : "Research and drafting start only when you click them. Set AUTO_PIPELINE=true on the server to automate."}
+                </p>
+              </dd>
+            </div>
+            <div>
               <dt>Website research</dt>
               <dd>
                 <Status value="ready" />

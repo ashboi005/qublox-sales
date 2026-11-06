@@ -156,8 +156,28 @@ export async function processJob(
           draftStatus: "complete",
           status: draft.score ? "review" : "skipped",
         });
+      // Research flows straight into drafting when an offer and AI key are set.
+      const chain = Boolean(
+        research && config.AUTO_PIPELINE && campaign && providerFor(config).key,
+      );
+      if (chain) values.draftStatus = "queued";
       await tx.update(prospects).set(values).where(eq(prospects.id, p.id));
       await tx.update(jobs).set({ status: "done", error: "" }).where(eq(jobs.id, job.id));
+      if (chain) {
+        await tx.insert(jobs).values({
+          id: crypto.randomUUID(),
+          prospectId: p.id,
+          kind: "draft",
+          inputVersion: current.version + 1,
+        });
+        await logActivity(
+          tx,
+          p.id,
+          "draft_queued",
+          "Draft queued automatically after research.",
+          "Research assistant",
+        );
+      }
       await logActivity(
         tx,
         p.id,

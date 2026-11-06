@@ -17,6 +17,7 @@ if (!process.env.DATABASE_URL?.endsWith("/qublox_sales_test"))
 const db = createDb({ DATABASE_URL: process.env.DATABASE_URL });
 const config = salesConfig({
   EMAIL_SENDING_ENABLED: true,
+  AUTO_PIPELINE: false,
   BETTER_AUTH_SECRET: "integration-test-only-secret-at-least-thirty-two-characters",
   DAILY_CONTACT_LIMIT: 10,
 });

@@ -11,6 +11,13 @@ const schema = z
     LLM_TPM: z.coerce.number().int().min(1).max(1000000).default(8000),
     LLM_TPD: z.coerce.number().int().min(1).max(10000000).default(100000),
     LLM_MONTHLY_BUDGET_USD: z.coerce.number().min(0).max(100).default(1),
+    // New leads with an offer are researched, then drafted, without clicks. Approval stays human.
+    AUTO_PIPELINE: z
+      .preprocess(
+        (v) => (v === true ? "true" : v === false ? "false" : v),
+        z.enum(["true", "false"]).default("true"),
+      )
+      .transform((v) => v === "true"),
     DAILY_CONTACT_LIMIT: z.coerce.number().int().min(1).max(100).default(10),
     EMAIL_SENDING_ENABLED: z
       .preprocess(
