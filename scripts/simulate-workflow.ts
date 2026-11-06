@@ -6,6 +6,7 @@ import { createAuth } from "../packages/auth/src";
 import { provisionTeamAccount } from "../packages/auth/src/provision";
 import { createApp } from "../apps/server/src/app";
 import { salesConfig } from "../apps/server/src/config";
+import { createDeliveryService } from "../apps/server/src/deliveries";
 import { claimJob, processJob } from "../apps/server/src/jobs";
 import type { Campaign, Prospect } from "../packages/shared/src";
 
@@ -46,7 +47,13 @@ try {
     'TRUNCATE "user", campaign, prospect, activity, suppression, job, llm_usage, llm_provider_state CASCADE',
   );
   const origin = "http://127.0.0.1:3303";
-  const config = salesConfig({ DAILY_CONTACT_LIMIT: 5 });
+  const config = salesConfig({
+    DAILY_CONTACT_LIMIT: 10,
+    EMAIL_SENDING_ENABLED: true,
+    GMAIL_ACCOUNTS_JSON: JSON.stringify([
+      { id: "simulation", email: "simulation@gmail.com", appPassword: "abcdefghijklmnop" },
+    ]),
+  });
   const authConfig = {
     BETTER_AUTH_URL: origin,
     CORS_ORIGIN: origin,
@@ -211,6 +218,53 @@ try {
     409,
   );
   record("Suppression", "Do-not-contact blocks reapproval and clears reminders");
+  let mail = await api<Prospect>(
+    "/prospects",
+    "POST",
+    {
+      name: "SIMULATION · Gmail outbox",
+      website: "https://mail-simulation.example",
+      email: "recipient@example.invalid",
+      campaignId: campaign.id,
+    },
+    201,
+  );
+  mail = await api(`/prospects/${mail.id}/evidence`, "POST", {
+    version: mail.version,
+    url: "https://example.com/demo",
+    title: "Simulation fixture",
+    text: "This is a controlled fixture for testing the outbox; no real prospect is contacted.",
+  });
+  mail = await api(`/prospects/${mail.id}/draft`, "PUT", {
+    ...draft,
+    evidenceIds: [mail.evidence[0]!.id],
+    version: mail.version,
+  });
+  mail = await api(`/prospects/${mail.id}/actions`, "POST", {
+    action: "approve",
+    version: mail.version,
+  });
+  const queued = await api<{ queued: number }>("/deliveries", "POST", {
+    prospects: [{ id: mail.id, version: mail.version }],
+    senderIds: ["simulation"],
+    mode: "now",
+  });
+  assert.equal(queued.queued, 1);
+  let smtpCalls = 0;
+  const simulatedDelivery = createDeliveryService(db, config, async (_account, snapshot) => {
+    assert.equal(snapshot.toAddress, "recipient@example.invalid");
+    smtpCalls++;
+    return { messageId: "simulated-smtp-acceptance" };
+  });
+  await simulatedDelivery.dispatchOne();
+  await simulatedDelivery.dispatchOne();
+  assert.equal(smtpCalls, 1);
+  mail = (await api<{ prospect: Prospect }>(`/prospects/${mail.id}`)).prospect;
+  assert.equal(mail.status, "contacted");
+  record(
+    "Simulated Gmail delivery",
+    "Approved snapshot queued and accepted once by a fake transport; no SMTP connection opened",
+  );
   const settings = await api<{ aiConfigured: boolean; provider: string }>("/settings");
   assert.equal(settings.aiConfigured, false);
   assert.equal(settings.provider, "groq");
