@@ -281,7 +281,7 @@ export function ProspectReview({ id }: { id: string }) {
       <div className="review-grid">
         <section className="review-pane" aria-label="Prospect evidence">
           <div className="pane-heading">
-            <h2>01 / The evidence</h2>
+            <h2>The evidence</h2>
             <span className="hint">
               {p.evidence.length} {p.evidence.length === 1 ? "source" : "sources"}
             </span>
@@ -368,7 +368,7 @@ export function ProspectReview({ id }: { id: string }) {
         </section>
         <section className="review-pane draft-pane" aria-label="Outreach draft">
           <div className="pane-heading">
-            <h2>02 / The message</h2>
+            <h2>The message</h2>
             <span className="hint">
               {p.score === null ? "Not scored" : `Signal ${p.score} / 3`}
             </span>

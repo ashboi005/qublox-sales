@@ -71,10 +71,8 @@ export function Workspace({ children }: { children: React.ReactNode }) {
       </a>
       <header className="topbar">
         <Link href="/" className="brand" aria-label="Qublox sales home">
-          <span className="brand-mark">q.</span>
-          <span>
-            qublox<span className="brand-sub"> / sales</span>
-          </span>
+          <span className="brand-wordmark">QUBLOX</span>
+          <span className="brand-sub">Sales</span>
         </Link>
         <nav aria-label="Workspace">
           {(
@@ -123,7 +121,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <footer className="workspace-footer">
-        <span>Qublox · Private team workspace</span>
+        <span>Qublox / Private team workspace</span>
         <span>Research → review → reach out</span>
       </footer>
     </>

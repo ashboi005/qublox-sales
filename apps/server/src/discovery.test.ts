@@ -109,3 +109,52 @@ test("OpenStreetMap results keep tagged contacts and skip unnamed places", async
     }),
   ]);
 });
+
+test("a repeated search skips businesses already in the list and continues to the next page", async () => {
+  let calls = 0;
+  const page = (start: number, next?: string) => ({
+    places: Array.from({ length: 20 }, (_, i) => ({
+      id: `p${start + i}`,
+      displayName: { text: `Shop ${start + i}` },
+      googleMapsUri: `https://maps.google.com/?cid=${start + i}`,
+    })),
+    ...(next ? { nextPageToken: next } : {}),
+  });
+  const result = await searchGooglePlaces(
+    { what: "clothing stores", where: "Amritsar", limit: 20, campaignId: null },
+    "key",
+    async (_url, init) => {
+      calls++;
+      const token = JSON.parse(String(init!.body)).pageToken;
+      return Response.json(
+        token === "three" ? page(40) : token === "two" ? page(20, "three") : page(0, "two"),
+      );
+    },
+    async (r) => Number(r.url!.split("=")[1]) < 25, // first 25 already imported
+  );
+  expect(calls).toBe(3);
+  expect(result.known).toBe(25);
+  expect(result.records.map((r) => r.name)).toEqual(
+    Array.from({ length: 20 }, (_, i) => `Shop ${25 + i}`),
+  );
+  expect(result.exhausted).toBe(true);
+});
+
+test("a search stops at the remaining monthly allowance", async () => {
+  let calls = 0;
+  const result = await searchGooglePlaces(
+    { what: "cafes", where: "Pune", limit: 60, campaignId: null },
+    "key",
+    async () => {
+      calls++;
+      return Response.json({
+        places: [{ id: `x${calls}`, displayName: { text: `Cafe ${calls}` } }],
+        nextPageToken: "more",
+      });
+    },
+    async () => false,
+    1,
+  );
+  expect(calls).toBe(1);
+  expect(result.records).toHaveLength(1);
+});

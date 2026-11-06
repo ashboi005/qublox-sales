@@ -1191,7 +1191,7 @@ test("Find leads imports Places results with listing evidence, queues research a
   expect(site).toMatchObject({ researchStatus: "queued", campaignId: offer.id });
   expect(site!.evidence[0]).toMatchObject({ kind: "listing", title: "Google Maps listing" });
   const second = await run();
-  expect(second.data).toMatchObject({ added: 0, duplicates: 2 });
+  expect(second.data).toMatchObject({ added: 0, duplicates: 2, exhausted: true });
   const third = await run();
   expect(third.status).toBe(429);
   const history = await request<unknown[]>("/api/lead-searches");

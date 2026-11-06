@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { and, desc, eq, gte, sum } from "drizzle-orm";
+import { and, desc, eq, gte, or, sql, sum } from "drizzle-orm";
 import type { Database } from "@qublox-sales/db";
-import { leadSearches } from "@qublox-sales/db/schema/sales";
+import { leadSearches, prospects, suppressions } from "@qublox-sales/db/schema/sales";
 import type { SalesConfig } from "./config";
 import { AppError } from "./errors";
-import { newId } from "./sales";
+import { identity, newId } from "./sales";
+import { phoneKey } from "@qublox-sales/shared";
 
 // Finds businesses for a niche and place from inside the portal, then hands them to the
 // normal import (dedupe, suppression, Maps-listing evidence, automatic research/draft).
@@ -70,14 +71,20 @@ const fieldMask = [
   "nextPageToken",
 ].join(",");
 
+// Businesses already in the workspace (or blocked) are skipped while paging, so repeating
+// a search continues to the next new ones instead of re-finding the same 20.
+export type IsKnown = (record: LeadRecord) => Promise<boolean>;
 export async function searchGooglePlaces(
   input: LeadSearchInput,
   key: string,
   fetcher: Fetcher = fetch,
+  isKnown: IsKnown = async () => false,
+  maxRequests = 3,
 ) {
   const records: LeadRecord[] = [];
   let pageToken: string | undefined,
-    requests = 0;
+    requests = 0,
+    known = 0;
   const now = new Date().toISOString();
   do {
     requests++;
@@ -111,7 +118,7 @@ export async function searchGooglePlaces(
     for (const place of page.places) {
       if (place.businessStatus && place.businessStatus !== "OPERATIONAL") continue;
       if (!place.displayName?.text) continue;
-      records.push({
+      const record: LeadRecord = {
         name: place.displayName.text,
         ...splitWebsite(place.websiteUri),
         phone: place.internationalPhoneNumber || place.nationalPhoneNumber || "",
@@ -121,11 +128,20 @@ export async function searchGooglePlaces(
         category: place.primaryTypeDisplayName?.text || "",
         url: place.googleMapsUri || `https://www.google.com/maps/place/?q=place_id:${place.id}`,
         scrapedAt: now,
-      });
+      };
+      if (await isKnown(record)) known++;
+      else records.push(record);
     }
     pageToken = page.nextPageToken;
-  } while (pageToken && records.length < input.limit && requests < 3);
-  return { records: records.slice(0, input.limit), requests, provider: "google" as const };
+  } while (pageToken && records.length < input.limit && requests < Math.min(3, maxRequests));
+  return {
+    records: records.slice(0, input.limit),
+    requests,
+    known,
+    // Google stops at 60 results per phrase; no token means this phrase is used up.
+    exhausted: !pageToken,
+    provider: "google" as const,
+  };
 }
 
 const nominatimPlace = z.object({
@@ -143,6 +159,7 @@ export async function searchOpenStreetMap(
   input: LeadSearchInput,
   company: string,
   fetcher: Fetcher = fetch,
+  isKnown: IsKnown = async () => false,
 ) {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.search = new URLSearchParams({
@@ -180,7 +197,19 @@ export async function searchOpenStreetMap(
         scrapedAt: now,
       };
     });
-  return { records, requests: 1, provider: "openstreetmap" as const };
+  const fresh: LeadRecord[] = [];
+  let known = 0;
+  for (const record of records) {
+    if (await isKnown(record)) known++;
+    else fresh.push(record);
+  }
+  return {
+    records: fresh,
+    requests: 1,
+    known,
+    exhausted: true,
+    provider: "openstreetmap" as const,
+  };
 }
 
 export function leadSearchService(
@@ -205,6 +234,39 @@ export function leadSearchService(
       .where(and(eq(leadSearches.provider, "google"), gte(leadSearches.createdAt, monthStart())));
     return Number(row?.value || 0);
   };
+  // Already in the list (same listing, website or phone) or on the do-not-contact list.
+  const isKnown: IsKnown = async (record) => {
+    let id: ReturnType<typeof identity>;
+    try {
+      id = identity({ website: record.website || "", phone: record.phone || "" });
+    } catch {
+      id = { website: "", domain: null, phoneKey: phoneKey(record.phone || "") };
+    }
+    const [prospect] = await db
+      .select({ id: prospects.id })
+      .from(prospects)
+      .where(
+        or(
+          record.url ? eq(prospects.sourceUrl, record.url) : undefined,
+          id.domain ? eq(prospects.domain, id.domain) : undefined,
+          id.phoneKey ? eq(prospects.phoneKey, id.phoneKey) : undefined,
+        ) || sql`false`,
+      )
+      .limit(1);
+    if (prospect) return true;
+    if (!id.domain && !id.phoneKey) return false;
+    const [blocked] = await db
+      .select({ id: suppressions.id })
+      .from(suppressions)
+      .where(
+        or(
+          id.domain ? eq(suppressions.domain, id.domain) : undefined,
+          id.phoneKey ? eq(suppressions.phoneKey, id.phoneKey) : undefined,
+        ),
+      )
+      .limit(1);
+    return Boolean(blocked);
+  };
   return {
     provider,
     placesUsed,
@@ -213,9 +275,9 @@ export function leadSearchService(
     },
     async run(input: LeadSearchInput, actor: string) {
       const selected = provider();
+      const remaining = config.PLACES_MONTHLY_REQUEST_LIMIT - (await placesUsed());
       if (selected === "google") {
-        const needed = Math.ceil(input.limit / 20);
-        if ((await placesUsed()) + needed > config.PLACES_MONTHLY_REQUEST_LIMIT)
+        if (remaining < 1)
           throw new AppError(
             429,
             "PLACES_ALLOWANCE",
@@ -227,8 +289,14 @@ export function leadSearchService(
       try {
         result =
           selected === "google"
-            ? await searchGooglePlaces(input, config.GOOGLE_PLACES_API_KEY, fetcher)
-            : await searchOpenStreetMap(input, config.COMPANY_NAME, fetcher);
+            ? await searchGooglePlaces(
+                input,
+                config.GOOGLE_PLACES_API_KEY,
+                fetcher,
+                isKnown,
+                remaining,
+              )
+            : await searchOpenStreetMap(input, config.COMPANY_NAME, fetcher, isKnown);
       } catch (error) {
         const message =
           error instanceof AppError ? error.message : "The business search could not complete.";
@@ -256,15 +324,15 @@ export function leadSearchService(
           location: input.where,
           provider: result.provider,
           requests: result.requests,
-          found: result.records.length,
+          found: result.records.length + result.known,
           added: imported.added,
-          duplicates: imported.duplicates,
+          duplicates: imported.duplicates + result.known,
           skipped: imported.invalid.length,
           campaignId: input.campaignId,
           actor,
         })
         .returning();
-      return row!;
+      return { ...row!, exhausted: result.exhausted };
     },
   };
 }

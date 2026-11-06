@@ -322,5 +322,7 @@ export const leadSearchSchema = z.object({
   actor: z.string(),
   error: z.string(),
   createdAt: z.string(),
+  // Only on a fresh search result: Google has no more pages for this phrase.
+  exhausted: z.boolean().optional(),
 });
 export type LeadSearch = z.infer<typeof leadSearchSchema>;

@@ -40,7 +40,8 @@ export function FindLeads({
       </div>
       <p>
         Type the kind of business and the place. Qublox finds them, skips ones you already have or
-        should not contact, and adds the rest.{" "}
+        should not contact, and adds the rest. Running the same search again continues with the next
+        businesses.{" "}
         {s?.autoPipeline
           ? "With an offer chosen, each one is then researched and drafted automatically for your review."
           : "Research and drafting then start when you click them."}
@@ -63,6 +64,17 @@ export function FindLeads({
               They are in the list below
               {s?.autoPipeline && last.campaignId ? " and research has started" : ""}. Drafts appear
               under the To review button.
+            </>
+          )}
+          {last.exhausted && last.provider === "google" && (
+            <>
+              {" "}
+              {last.added === 0
+                ? "Google has no more results for this exact search; everything it returned is already in your list."
+                : "That was Google's last page for this search."}{" "}
+              Google gives at most 60 businesses per search, so for more try a nearby area (
+              &ldquo;Ranjit Avenue, {last.location}&rdquo;) or a related term
+              (&ldquo;boutiques&rdquo;, &ldquo;garment shops&rdquo;).
             </>
           )}
         </Notice>
@@ -141,14 +153,15 @@ export function FindLeads({
           <ul className="sender-list">
             {recent.data.map((r) => (
               <li key={r.id}>
-                <span>
+                <span className="source-summary">
                   <strong>
                     {r.what} in {r.location}
                   </strong>{" "}
                   <small>
-                    · {r.error ? r.error : `${r.added} added of ${r.found} found`} ·{" "}
-                    {r.provider === "google" ? "Google" : "OpenStreetMap"} · {r.actor} ·{" "}
-                    {time(r.createdAt)}
+                    <span>{r.error ? r.error : `${r.added} added of ${r.found} found`}</span>
+                    <span>{r.provider === "google" ? "Google" : "OpenStreetMap"}</span>
+                    <span>{r.actor}</span>
+                    <span>{time(r.createdAt)}</span>
                   </small>
                 </span>
               </li>

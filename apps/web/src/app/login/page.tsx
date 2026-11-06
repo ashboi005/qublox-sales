@@ -13,7 +13,8 @@ export default function Login() {
     <main className="auth-page">
       <div className="auth-panel">
         <a className="brand" href="/">
-          <span className="brand-mark">q.</span>qublox<span className="brand-sub"> / sales</span>
+          <span className="brand-wordmark">QUBLOX</span>
+          <span className="brand-sub">Sales</span>
         </a>
 
         <h1>Back to the work.</h1>
