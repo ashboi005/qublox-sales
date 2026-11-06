@@ -5,7 +5,7 @@ import { leadSearches, prospects, suppressions } from "@qublox-sales/db/schema/s
 import type { SalesConfig } from "./config";
 import { AppError } from "./errors";
 import { identity, newId } from "./sales";
-import { phoneKey } from "@qublox-sales/shared";
+import { isSocialOrDirectory, phoneKey } from "@qublox-sales/shared";
 
 // Finds businesses for a niche and place from inside the portal, then hands them to the
 // normal import (dedupe, suppression, Maps-listing evidence, automatic research/draft).
@@ -29,8 +29,7 @@ export function splitWebsite(uri: string | undefined) {
     const host = url.hostname.replace(/^www\./, "");
     if (/(^|\.)instagram\.com$/.test(host))
       return { website: "", instagram: `https://www.instagram.com${url.pathname}` };
-    if (/(^|\.)(facebook\.com|fb\.com|wa\.me|whatsapp\.com|linktr\.ee|google\.com)$/.test(host))
-      return { website: "", instagram: "" };
+    if (isSocialOrDirectory(url.toString())) return { website: "", instagram: "" };
     for (const key of [...url.searchParams.keys()])
       if (/^(utm_|gclid|fbclid)/i.test(key)) url.searchParams.delete(key);
     return { website: url.toString(), instagram: "" };

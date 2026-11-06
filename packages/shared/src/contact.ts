@@ -33,3 +33,15 @@ export function whatsappLink(phone: string, country: string, text: string) {
   const number = whatsappNumber(phone, country);
   return number ? `https://wa.me/${number}?text=${encodeURIComponent(text)}` : null;
 }
+
+// Social profiles, link pages and directories are not the business's own website: there is
+// nothing to audit and crawling them only wastes time (or reads the platform's own pages).
+const notOwnSite =
+  /(^|\.)(instagram\.com|facebook\.com|fb\.com|fb\.me|wa\.me|whatsapp\.com|linktr\.ee|google\.com|g\.page|goo\.gl|youtube\.com|youtu\.be|twitter\.com|x\.com|linkedin\.com|pinterest\.com|justdial\.com|indiamart\.com|sulekha\.com|practo\.com|zomato\.com|swiggy\.com|tripadvisor\.[a-z.]+|booking\.com|yelp\.com|bit\.ly)$/i;
+export function isSocialOrDirectory(url: string) {
+  try {
+    return notOwnSite.test(new URL(url).hostname.replace(/^www\./, ""));
+  } catch {
+    return false;
+  }
+}

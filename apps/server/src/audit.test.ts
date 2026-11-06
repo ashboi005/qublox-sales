@@ -124,6 +124,34 @@ test("opportunity favours no website, slow or dated sites and established busine
   expect(fine).toEqual({ score: 0, reasons: ["No email or phone yet"] });
 });
 
+test("the trade comes from the Maps category, so 'restore mobility' is not a store", () => {
+  const physio = opportunityFor({
+    website: "https://physio.example/",
+    email: null,
+    phone: "1",
+    evidence: [
+      {
+        id: "l",
+        url: "https://maps.example/p",
+        title: "Listing",
+        text: "Google Maps listing for Bhullar Physio Care. Category: Physiotherapist.",
+        kind: "listing",
+        retrievedAt: now.toISOString(),
+      },
+      {
+        id: "w",
+        url: "https://physio.example/",
+        title: "Home",
+        text: "We restore mobility and shop for nothing.",
+        kind: "website",
+        retrievedAt: now.toISOString(),
+      },
+    ],
+    audit: { store: false, booking: false },
+  });
+  expect(physio.reasons).not.toContain("No online store");
+});
+
 test("Reoon statuses map onto valid, invalid, risky and unknown", () => {
   expect(mapReoonStatus("safe")).toBe("valid");
   expect(mapReoonStatus("disabled")).toBe("invalid");

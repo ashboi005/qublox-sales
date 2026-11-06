@@ -67,3 +67,15 @@ test("layout repair restores the sender token and line breaks models drop", () =
 test("non-breaking hyphens become plain hyphens", () => {
   expect(cleanDraftText("easy‑to‑use")).toBe("easy-to-use");
 });
+
+test("a truncated sign-off and a blank line before the name are repaired", () => {
+  expect(
+    enforceSenderLayout(
+      "Hi team,\n\n{{sender}} here from Qublox. A question.\n\nKind,\n\n{{sender}}",
+      "Qublox",
+    ),
+  ).toBe("Hi team,\n\n{{sender}} here from Qublox. A question.\n\nKind regards,\n{{sender}}");
+  expect(enforceSenderLayout("Hi team,\n\nBody text.\n\nThanks,\n\n{{sender}}", "Qublox")).toBe(
+    "Hi team,\n\nBody text.\n\nThanks,\n{{sender}}",
+  );
+});

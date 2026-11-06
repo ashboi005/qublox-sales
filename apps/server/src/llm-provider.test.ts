@@ -238,3 +238,41 @@ test("model output is cleaned of dashes, curly quotes and bracket name placehold
     "Hi team,\n\n{{sender}} here from Qublox. Your menu, it's clear.\n\nThanks,\n{{sender}}",
   );
 });
+test("audit and listing evidence go to the model first and survive trimming", () => {
+  const at = new Date().toISOString();
+  const long = (n: number) => ({
+    id: `w${n}`,
+    url: `https://site.example/${n}`,
+    title: "Page",
+    text: "Long page text about the business. ".repeat(40),
+    kind: "website" as const,
+    retrievedAt: at,
+  });
+  const request = buildDraftRequest(
+    {
+      name: "Clinic",
+      channel: "email",
+      evidence: [
+        long(1),
+        long(2),
+        long(3),
+        long(4),
+        long(5),
+        long(6),
+        {
+          id: "audit",
+          url: "https://site.example/",
+          title: "Website audit",
+          text: "Google PageSpeed (mobile) scores the homepage 47/100.",
+          kind: "audit",
+          retrievedAt: at,
+        },
+      ],
+    },
+    campaign,
+    providerFor(salesConfig({})),
+  );
+  const sent = JSON.parse(request.messages[1]!.content).evidence;
+  expect(sent[0].id).toBe("audit");
+  expect(sent).toHaveLength(6);
+});

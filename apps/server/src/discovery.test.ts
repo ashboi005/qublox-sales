@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { isSocialOrDirectory } from "@qublox-sales/shared";
 import { searchGooglePlaces, searchOpenStreetMap, splitWebsite } from "./discovery";
 
 test("social profiles are not treated as websites and tracking parameters are dropped", () => {
@@ -157,4 +158,18 @@ test("a search stops at the remaining monthly allowance", async () => {
   );
   expect(calls).toBe(1);
   expect(result.records).toHaveLength(1);
+});
+
+test("YouTube, directory and link pages are not treated as the business website", () => {
+  for (const uri of [
+    "https://youtube.com/",
+    "https://www.youtube.com/@clinic",
+    "https://www.justdial.com/Amritsar/x",
+    "https://www.practo.com/amritsar/clinic/x",
+    "https://linktr.ee/clinic",
+  ])
+    expect(splitWebsite(uri)).toEqual({ website: "", instagram: "" });
+  expect(splitWebsite("https://smileclinic.in/").website).toBe("https://smileclinic.in/");
+  expect(isSocialOrDirectory("https://m.facebook.com/clinic")).toBe(true);
+  expect(isSocialOrDirectory("https://youtubeclinic.in/")).toBe(false);
 });

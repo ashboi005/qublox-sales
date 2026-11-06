@@ -87,15 +87,20 @@ export async function pageSpeed(
 // Plain sentences, so the AI can quote one real observation.
 export function auditEvidence(audit: Audit, url: string, now = new Date()): Evidence | null {
   const facts: string[] = [];
-  if (audit.performance !== undefined)
+  if (audit.performance !== undefined) {
+    // Only call speed a problem when it is one; a fast site is stated as fast.
+    const slow = audit.performance < 70 || (audit.largestPaintSeconds ?? 0) >= 6;
     facts.push(
-      `Google PageSpeed (mobile) scores the homepage ${audit.performance}/100${audit.largestPaintSeconds ? ` and the main content takes about ${audit.largestPaintSeconds} seconds to appear on a phone` : ""}.`,
+      slow
+        ? `Google PageSpeed (mobile) scores the homepage ${audit.performance}/100${audit.largestPaintSeconds ? ` and the main content takes about ${audit.largestPaintSeconds} seconds to appear on a phone` : ""}.`
+        : `The homepage loads quickly on phones (Google PageSpeed ${audit.performance}/100); speed is not a problem here.`,
     );
+  }
   if (audit.https === false)
     facts.push("The site does not use HTTPS, so browsers mark it as not secure.");
   if (audit.mobileViewport === false)
     facts.push("The homepage has no mobile viewport tag, so it likely does not fit phone screens.");
-  if (audit.copyrightYear && audit.copyrightYear <= now.getUTCFullYear() - 2)
+  if (audit.copyrightYear && audit.copyrightYear <= now.getUTCFullYear() - 3)
     facts.push(`The footer copyright still says ${audit.copyrightYear}.`);
   if (audit.booking === false) facts.push("No online booking or appointment link was found.");
   if (audit.store === false) facts.push("No online store or cart was found.");
@@ -137,17 +142,23 @@ export function opportunityFor(input: {
     reasons.push(reason);
   };
   const listing = input.evidence.find((e) => e.kind === "listing")?.text || "";
-  const context = `${listing} ${input.evidence.find((e) => e.kind === "website")?.text.slice(0, 600) || ""}`;
+  // The trade comes from the Maps category (or name), not page text: "restore" is not a store.
+  const context = listing.match(/Category: ([^.]+)\./)?.[1] || listing.slice(0, 200);
   const reviews = Number(listing.match(/from (\d+) reviews/)?.[1] || 0);
   const a = input.audit;
   if (!input.website) add(45, "No website");
   if (a?.performance !== undefined) {
-    if (a.performance < 50) add(20, `Slow on mobile (PageSpeed ${a.performance}/100)`);
+    const seconds = a.largestPaintSeconds ?? 0;
+    if (a.performance < 50 || seconds >= 6)
+      add(
+        20,
+        `Slow on mobile (${seconds >= 6 ? `${seconds}s to load, ` : ""}PageSpeed ${a.performance}/100)`,
+      );
     else if (a.performance < 70) add(8, `Average mobile speed (PageSpeed ${a.performance}/100)`);
   }
   if (a?.mobileViewport === false) add(15, "Not mobile friendly");
   if (a?.https === false) add(10, "No HTTPS");
-  if (a?.copyrightYear && a.copyrightYear <= new Date().getUTCFullYear() - 2)
+  if (a?.copyrightYear && a.copyrightYear <= new Date().getUTCFullYear() - 3)
     add(10, `Looks unmaintained (copyright ${a.copyrightYear})`);
   if (a?.readVia && a.readVia !== "direct") add(5, "Hard to load without a full browser");
   if (a?.booking === false && appointmentTrade.test(context)) add(10, "No online booking");

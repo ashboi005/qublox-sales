@@ -2,7 +2,12 @@ import { aiConfigured, LlmDeferred, providerFor } from "./llm-provider";
 import { and, asc, eq, lt, lte, or, sql } from "drizzle-orm";
 import type { Database } from "@qublox-sales/db";
 import { campaigns, jobs, prospects } from "@qublox-sales/db/schema/sales";
-import { researchSchema, type DraftInput, type Research } from "@qublox-sales/shared";
+import {
+  isSocialOrDirectory,
+  researchSchema,
+  type DraftInput,
+  type Research,
+} from "@qublox-sales/shared";
 import type { SalesConfig } from "./config";
 import { generateDraft } from "./llm";
 import { logActivity, lockProspect, type ProspectRow } from "./sales";
@@ -85,6 +90,10 @@ export async function processJob(
       campaignVersion: number | undefined;
     if (job.kind === "research" && !p.website)
       throw new Error("This business has no website to research. Add evidence manually.");
+    if (job.kind === "research" && isSocialOrDirectory(p.website))
+      throw new Error(
+        "This business has no website of its own (the link is a social or directory page). Add evidence manually.",
+      );
     if (job.kind === "research")
       research = researchSchema.parse(
         await (dependencies?.research || defaultResearch(db, config))(p.website),
@@ -220,9 +229,15 @@ export async function processJob(
     );
   } catch (error) {
     const deferred = error instanceof LlmDeferred ? error : null;
+    // Robots refusals, missing websites and blocked addresses will not change on a retry.
+    const permanent =
+      error instanceof Error &&
+      /^(This website does not permit|This business has no website|Only public|No usable page text found, even)/.test(
+        error.message,
+      );
     const retry = deferred
       ? !deferred.rejected || job.attempts < 3
-      : job.kind === "research" && job.attempts < 3;
+      : job.kind === "research" && !permanent && job.attempts < 3;
     const detail =
       error instanceof Error &&
       /^(Only public|The website|This website|This business|This research|No usable|AI |Choose a campaign|The monthly)/.test(
@@ -259,7 +274,16 @@ export async function processJob(
           })
           .where(eq(prospects.id, p.id));
     });
-    console.error(JSON.stringify({ event: "job_failed", jobId: job.id, kind: job.kind, retry }));
+    console.error(
+      JSON.stringify({
+        event: "job_failed",
+        jobId: job.id,
+        kind: job.kind,
+        retry,
+        // The underlying reason for operators; the UI shows the safe summary above.
+        reason: error instanceof Error ? error.message.slice(0, 200) : "unknown",
+      }),
+    );
   }
 }
 

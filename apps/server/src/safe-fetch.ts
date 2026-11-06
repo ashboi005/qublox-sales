@@ -59,7 +59,18 @@ export async function fetchPublicResource(
   // Connect to the vetted literal address: no second DNS lookup or rebinding window.
   // Host and TLS servername preserve the original website's identity.
   const response = await new Promise<{ status: number; body: string; location?: string }>(
-    (resolve, reject) => {
+    (settleOk, settleError) => {
+      // A hard deadline for the whole exchange, headers and body. It does not rely on
+      // socket "close" events, which can fire early and leave a trickling response hanging.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const resolve = (value: { status: number; body: string; location?: string }) => {
+        clearTimeout(timer);
+        settleOk(value);
+      };
+      const reject = (error: unknown) => {
+        clearTimeout(timer);
+        settleError(error);
+      };
       const transport = target.url.protocol === "https:" ? httpsRequest : httpRequest;
       const req = transport(
         {
@@ -120,11 +131,11 @@ export async function fetchPublicResource(
           res.on("error", reject);
         },
       );
-      const timeout = setTimeout(
-        () => req.destroy(new Error("The website took too long to respond.")),
-        10_000,
-      );
-      req.on("close", () => clearTimeout(timeout));
+      timer = setTimeout(() => {
+        const error = new Error("The website took too long to respond.");
+        req.destroy(error);
+        reject(error);
+      }, 15_000);
       req.on("error", reject);
       req.end();
     },

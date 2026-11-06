@@ -1398,3 +1398,36 @@ test("page readers try Jina first, then Firecrawl within its monthly allowance",
   expect(used).toHaveLength(3);
   expect(pageReader(db, salesConfig({ ...config, PAGE_READER_FALLBACK: "false" }))).toBeNull();
 });
+
+test("a robots.txt refusal fails research once instead of retrying", async () => {
+  const sales = createSalesService(db, config);
+  const lead = await sales.createProspect(
+    prospectInput.parse({ name: "Robots says no", website: "robots-no.example" }),
+    "Test",
+  );
+  const [job] = await db
+    .insert(jobs)
+    .values({
+      id: crypto.randomUUID(),
+      prospectId: lead.id,
+      kind: "research",
+      inputVersion: lead.version,
+      status: "running",
+      attempts: 1,
+      lockedAt: new Date(),
+      leaseId: crypto.randomUUID(),
+    })
+    .returning();
+  await processJob(db, config, job!, {
+    research: async () => {
+      throw new Error(
+        "This website does not permit automated research. Add a manual observation instead.",
+      );
+    },
+  });
+  const [saved] = await db.select().from(jobs).where(eq(jobs.id, job!.id));
+  expect(saved!.status).toBe("failed");
+  const detail = (await sales.detail(lead.id)).prospect;
+  expect(detail.researchStatus).toBe("failed");
+  expect(detail.lastError).toContain("does not permit");
+});

@@ -92,6 +92,12 @@ export function enforceSenderLayout(body: string, company: string) {
       text = text.replace(new RegExp(`(^|\\s)${escapeRegex(invented)}\\s*$`), `$1${SENDER_TOKEN}`);
   }
   text = text.replace(/(\{\{sender\}\}\s*\n\s*)+\{\{sender\}\}\s*$/, SENDER_TOKEN);
+  // A truncated sign-off ("Kind,") and a blank line before the name.
+  text = text
+    .replace(/\n(Kind|Warm|Best)\s*,\s*\n/g, (_, word: string) =>
+      word === "Best" ? "\nBest,\n" : `\n${word} regards,\n`,
+    )
+    .replace(/(\n[A-Z][A-Za-z ]{1,20},)\s*\n\s*\n(\{\{sender\}\})\s*$/, "$1\n$2");
   if (!text.includes("\n")) {
     text = text
       .replace(/^((?:Hi|Hello|Dear)\b[^,\n]{0,80},)\s+/, "$1\n\n")
