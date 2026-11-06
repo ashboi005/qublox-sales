@@ -89,6 +89,10 @@ services:
     ports:
       - "127.0.0.1:${WEB_PORT:-3001}:3001"
     environment:
+      # Pinned so a platform-wide PORT (Coolify, the shared .env) cannot move the web app
+      # off 3001, where the domain, the published port and the healthcheck all point.
+      PORT: 3001
+      HOSTNAME: 0.0.0.0
       SERVER_URL: http://server:3000
       NEXT_PUBLIC_SERVER_URL: ${APP_ORIGIN:?Set APP_ORIGIN in .env}
     depends_on:
