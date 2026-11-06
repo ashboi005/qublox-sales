@@ -18,6 +18,7 @@ Latest slice: `tasks/team-outreach.md` (all done). Codex's earlier Gmail slice (
 - Polish with AI on Offers (`apps/server/src/offer-polish.ts`)
 - Find leads in the portal via Google Places or OpenStreetMap (`apps/server/src/discovery.ts`, `docs/lead-search.md`)
 - AI rotation: Groq and Gemini alternate, back off on 429 and cover for each other (`callModel` in `apps/server/src/llm.ts`, `docs/ai.md`)
+- website audit + opportunity score, Jina/Firecrawl fallback reader, on-demand Reoon email verification (`audit.ts`, `readers.ts`, `email-verify.ts`, `docs/research-tools.md`)
 
 User-facing explanation of the app: `docs/user-guide.md`. Verification history: `docs/verification.md`.
 

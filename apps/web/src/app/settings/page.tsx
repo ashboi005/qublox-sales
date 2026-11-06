@@ -68,6 +68,46 @@ function Settings() {
               </dd>
             </div>
             <div>
+              <dt>Website audit</dt>
+              <dd>
+                {s.pageSpeedConfigured
+                  ? "On-page checks + Google PageSpeed mobile speed"
+                  : "On-page checks only"}
+                <p>
+                  Research checks HTTPS, mobile layout, copyright year, booking, store, WhatsApp and
+                  contact form, and turns problems into evidence the AI can mention. With
+                  PAGESPEED_API_KEY set it also measures mobile speed (free Google API, no billing).
+                </p>
+              </dd>
+            </div>
+            <div>
+              <dt>Hard-to-read sites</dt>
+              <dd>
+                {s.readerFallback === "off"
+                  ? "Off"
+                  : s.readerFallback === "jina"
+                    ? "Jina Reader (free, no key)"
+                    : `Jina Reader, then Firecrawl · ${s.firecrawlThisMonth} / ${s.firecrawlMonthlyLimit} pages this month`}
+                <p>
+                  When a site blocks simple requests or is built entirely in JavaScript, it is read
+                  through a real browser instead. robots.txt is still respected.
+                </p>
+              </dd>
+            </div>
+            <div>
+              <dt>Email verification</dt>
+              <dd>
+                <Status value={s.emailVerification ? "ready" : "not connected"} />
+                {s.emailVerification &&
+                  ` ${s.verificationsThisMonth} / ${s.verificationMonthlyLimit} checks this month`}
+                <p>
+                  {s.emailVerification
+                    ? "Runs only when you click Verify email on a lead or Verify & send when queueing. Results are kept for 30 days."
+                    : "Add REOON_API_KEY on the server to verify addresses on demand."}
+                </p>
+              </dd>
+            </div>
+            <div>
               <dt>Website research</dt>
               <dd>
                 <Status value="ready" />

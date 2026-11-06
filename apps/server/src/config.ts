@@ -44,6 +44,26 @@ const schema = z
     GOOGLE_PLACES_API_KEY: z.string().default(""),
     // Stays under Google's 1,000 free Text Search Enterprise requests a month.
     PLACES_MONTHLY_REQUEST_LIMIT: z.coerce.number().int().min(0).max(100000).default(900),
+    // Website audit: Google PageSpeed Insights (free API, no billing). Empty skips the
+    // speed test; the on-page checks still run.
+    PAGESPEED_API_KEY: z.string().default(""),
+    // When our own fetch cannot read a site, try Jina Reader (free, no key) and then
+    // Firecrawl (free plan, no card). "false" turns both off.
+    PAGE_READER_FALLBACK: z
+      .preprocess(
+        (v) => (v === true ? "true" : v === false ? "false" : v),
+        z.enum(["true", "false"]).default("true"),
+      )
+      .transform((v) => v === "true"),
+    // Optional. Without a key Jina is free at 20 pages a minute and can never bill.
+    JINA_API_KEY: z.string().default(""),
+    FIRECRAWL_API_KEY: z.string().default(""),
+    // Firecrawl's free plan has 1,000 pages a month; stop locally before that.
+    FIRECRAWL_MONTHLY_LIMIT: z.coerce.number().int().min(0).max(100000).default(900),
+    // On-demand email verification (Reoon). Never runs automatically.
+    REOON_API_KEY: z.string().default(""),
+    // Reoon's free plan gives about 600 checks a month; stop locally before that.
+    REOON_MONTHLY_LIMIT: z.coerce.number().int().min(0).max(100000).default(500),
     // Also the key source for encrypting stored Gmail App Passwords.
     BETTER_AUTH_SECRET: z.string().default(""),
     COMPANY_NAME: z

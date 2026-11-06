@@ -1,0 +1,316 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "0067f265-244c-4cf7-a3d0-8bfba47f6c86",
+  "prevIds": [
+    "6766c91c-398b-4b09-8d46-f382d96da5e7"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "api_usage"
+      ],
+      "writes": [
+        "s|tbl|public.api_usage",
+        "n|tbl|public.api_usage",
+        "e|tbl|public.api_usage",
+        "n|rel|public.api_usage",
+        "n|type|public.api_usage",
+        "n|rel|public.api_usage_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "prospect",
+        "email_checked_at"
+      ],
+      "writes": [
+        "s|col|public.prospect.email_checked_at",
+        "n|col|public.prospect.email_checked_at",
+        "e|col|public.prospect.email_checked_at"
+      ],
+      "reads": [
+        "n|tbl|public.prospect",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "prospect",
+        "opportunity"
+      ],
+      "writes": [
+        "s|col|public.prospect.opportunity",
+        "n|col|public.prospect.opportunity",
+        "e|col|public.prospect.opportunity"
+      ],
+      "reads": [
+        "n|tbl|public.prospect",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "prospect",
+        "opportunity_reasons"
+      ],
+      "writes": [
+        "s|col|public.prospect.opportunity_reasons",
+        "n|col|public.prospect.opportunity_reasons",
+        "e|col|public.prospect.opportunity_reasons"
+      ],
+      "reads": [
+        "n|tbl|public.prospect",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "api_usage",
+        "api_usage_service_created_idx"
+      ],
+      "writes": [
+        "s|idx|public.api_usage_service_created_idx",
+        "n|idx|public.api_usage_service_created_idx",
+        "e|idx|public.api_usage_service_created_idx",
+        "n|rel|public.api_usage_service_created_idx"
+      ],
+      "reads": [
+        "n|tbl|public.api_usage",
+        "n|sch|public",
+        "n|col|public.api_usage.service",
+        "n|col|public.api_usage.created_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "prospect",
+        "prospect_opportunity_idx"
+      ],
+      "writes": [
+        "s|idx|public.prospect_opportunity_idx",
+        "n|idx|public.prospect_opportunity_idx",
+        "e|idx|public.prospect_opportunity_idx",
+        "n|rel|public.prospect_opportunity_idx"
+      ],
+      "reads": [
+        "n|tbl|public.prospect",
+        "n|sch|public",
+        "n|col|public.prospect.opportunity"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "api_usage",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "api_usage",
+        "name": "id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "api_usage",
+        "name": "service",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "api_usage",
+        "name": "ok",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "1",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "api_usage",
+        "name": "created_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "prospect",
+        "name": "email_checked_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "prospect",
+        "name": "opportunity",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "prospect",
+        "name": "opportunity_reasons",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "api_usage",
+        "name": "api_usage_service_created_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "service",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "created_at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "prospect",
+        "name": "prospect_opportunity_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "opportunity",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "api_usage",
+        "name": "api_usage_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

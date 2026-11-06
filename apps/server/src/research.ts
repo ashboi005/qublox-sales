@@ -1,6 +1,8 @@
 import { load } from "cheerio";
 import { z } from "zod";
-import type { Evidence, Research } from "@qublox-sales/shared";
+import type { Audit, Evidence, Research } from "@qublox-sales/shared";
+import { auditEvidence, pageSignals } from "./audit";
+import type { PageReader } from "./readers";
 import { fetchPublicResource, type Resource } from "./safe-fetch";
 
 const unique = (items: string[]) => [...new Set(items)].slice(0, 20);
@@ -97,6 +99,7 @@ export function extractPage(html: string, url: string, retrievedAt = new Date().
             : /squarespace\.com/i.test(html)
               ? "Squarespace"
               : "Unknown";
+  const signals = pageSignals(html, url);
   const title = text($("title").first().text()).slice(0, 200) || new URL(url).hostname;
   const description = text($("meta[name='description']").attr("content") || "");
   $("script, style, noscript, svg, [hidden], [aria-hidden='true']").remove();
@@ -192,6 +195,7 @@ export function extractPage(html: string, url: string, retrievedAt = new Date().
     socials: unique(socials),
     links: unique(links),
     evidence,
+    signals,
   };
 }
 
@@ -257,34 +261,76 @@ export function robotsAllows(content: string, path: string) {
   return matches[0]?.allow ?? true;
 }
 
+export type ResearchOptions = {
+  // Browser-based fallback when our own fetch cannot read the homepage.
+  reader?: PageReader | null;
+  // Measured mobile speed for the audit (Google PageSpeed Insights).
+  speed?: (url: string) => Promise<Pick<Audit, "performance" | "largestPaintSeconds"> | null>;
+};
+
 export async function researchWebsite(
   website: string,
   fetcher: (url: string, types?: string[]) => Promise<Resource> = fetchPublicResource,
+  options: ResearchOptions = {},
 ): Promise<Research> {
   const home = new URL("/", website).toString();
-  const robots = await fetcher(new URL("/robots.txt", home).toString(), [
-    "text/plain",
-    "text/html",
-  ]);
-  if (
-    [401, 403].includes(robots.status) ||
-    (robots.status === 200 && !robotsAllows(robots.body, "/"))
-  )
+  const warnings: string[] = [];
+  // RFC 9309: a missing or forbidden robots.txt (4xx) places no restrictions. An explicit
+  // disallow is always respected, including by the fallback readers.
+  let robotsBody = "";
+  try {
+    const robots = await fetcher(new URL("/robots.txt", home).toString(), [
+      "text/plain",
+      "text/html",
+    ]);
+    if (robots.status === 200) robotsBody = robots.body;
+  } catch {
+    warnings.push("robots.txt could not be read; only the homepage and contact page were read.");
+  }
+  if (robotsBody && !robotsAllows(robotsBody, "/"))
     throw new Error(
       "This website does not permit automated research. Add a manual observation instead.",
     );
-  const response = await fetcher(home);
-  if (response.status !== 200)
-    throw new Error(
-      `The website returned HTTP ${response.status}. Add evidence manually or retry later.`,
+  let response: Resource | null = null;
+  let directError = "";
+  try {
+    response = await fetcher(home);
+    if (response.status !== 200) {
+      directError = `The website returned HTTP ${response.status}. Add evidence manually or retry later.`;
+      response = null;
+    }
+  } catch (error) {
+    directError =
+      error instanceof Error && /^(The website|This website|Only public)/.test(error.message)
+        ? error.message
+        : "The website could not be read. Add evidence manually or retry later.";
+    if (error instanceof Error && /^Only public/.test(error.message)) throw error;
+  }
+  let first = response ? extractPage(response.body, response.url) : null;
+  let readVia: "direct" | "jina" | "firecrawl" = "direct";
+  let homeHtml = response?.body || "";
+  let homeUrl = response?.url || home;
+  if (!first?.evidence.length) {
+    if (!options.reader)
+      throw new Error(
+        directError ||
+          "No usable page text found. This website may require JavaScript; add evidence manually.",
+      );
+    const page = await options.reader(home);
+    readVia = page.via;
+    homeHtml = page.body;
+    homeUrl = page.url;
+    first = extractPage(page.body, page.url);
+    if (!first.evidence.length)
+      throw new Error(
+        "No usable page text found, even with a full browser. Add evidence manually.",
+      );
+    warnings.push(
+      `Read through ${page.via === "jina" ? "Jina Reader" : "Firecrawl"} because the site blocks simple requests or needs JavaScript.`,
     );
-  const first = extractPage(response.body, response.url);
-  if (!first.evidence.length)
-    throw new Error(
-      "No usable page text found. This website may require JavaScript; add evidence manually.",
-    );
-  const pages = [first],
-    warnings: string[] = [];
+  }
+  const speed = options.speed ? options.speed(homeUrl).catch(() => null) : Promise.resolve(null);
+  const pages = [first];
   // Only follow the same origin. A cross-origin landing redirect is researched, never crawled onward.
   // Contact pages first. Without an email or a contact link, try the usual contact paths.
   const rank = (link: string) =>
@@ -294,42 +340,77 @@ export async function researchWebsite(
     first.emails.length || linked.some((l) => rank(l) === 0)
       ? []
       : ["/contact", "/contact-us", "/pages/contact"].map((path) =>
-          new URL(path, response.url).toString(),
+          new URL(path, homeUrl).toString(),
         );
-  const visited = new Set([new URL(response.url).toString()]);
+  const visited = new Set([new URL(homeUrl).toString()]);
   const candidates = [...linked.slice(0, 3), ...guesses].filter((link) => {
     const fresh = !visited.has(link);
     visited.add(link);
     return fresh;
   });
-  for (const link of candidates) {
-    if (pages.length >= 4) break;
-    const guessed = guesses.includes(link);
-    if (
-      new URL(link).origin !== new URL(response.url).origin ||
-      !robotsAllows(robots.body, new URL(link).pathname)
-    )
-      continue;
-    try {
-      const page = await fetcher(link);
-      if (page.status === 200 && new URL(page.url).origin === new URL(response.url).origin) {
+  if (readVia === "direct") {
+    for (const link of candidates) {
+      if (pages.length >= 4) break;
+      const guessed = guesses.includes(link);
+      if (
+        new URL(link).origin !== new URL(homeUrl).origin ||
+        !robotsAllows(robotsBody, new URL(link).pathname)
+      )
+        continue;
+      try {
+        const page = await fetcher(link);
+        if (page.status === 200 && new URL(page.url).origin === new URL(homeUrl).origin) {
+          pages.push(extractPage(page.body, page.url));
+          if (guessed) break;
+        } else if (!guessed)
+          warnings.push(`A linked page could not be read (HTTP ${page.status}).`);
+      } catch {
+        if (!guessed) warnings.push("A linked page could not be researched.");
+      }
+    }
+  } else if (!first.emails.length && options.reader) {
+    // Through a reader, spend at most one more page: the best contact link.
+    const contact = linked.find(
+      (l) =>
+        rank(l) === 0 &&
+        new URL(l).origin === new URL(homeUrl).origin &&
+        robotsAllows(robotsBody, new URL(l).pathname),
+    );
+    if (contact) {
+      try {
+        const page = await options.reader(contact);
         pages.push(extractPage(page.body, page.url));
-        if (guessed) break;
-      } else if (!guessed) warnings.push(`A linked page could not be read (HTTP ${page.status}).`);
-    } catch {
-      if (!guessed) warnings.push("A linked page could not be researched.");
+      } catch {
+        warnings.push("The contact page could not be read.");
+      }
     }
   }
+  const audit: Audit = {
+    ...pageSignals(homeHtml, homeUrl),
+    ...(await speed),
+    readVia,
+  };
+  // A form, booking link or WhatsApp button on any page read counts.
+  for (const page of pages.slice(1)) {
+    if (page.signals.contactForm) audit.contactForm = true;
+    if (page.signals.booking) audit.booking = true;
+    if (page.signals.whatsapp) audit.whatsapp = true;
+  }
+  const auditNote = auditEvidence(audit, homeUrl);
   return {
     summary: first.summary.slice(0, 4000),
     platform: pages.find((page) => page.platform !== "Unknown")?.platform || "Unknown",
     emails: rankEmails(
       pages.flatMap((page) => page.emails),
-      response.url,
+      homeUrl,
     ),
     phones: unique(pages.flatMap((page) => page.phones)),
     socials: unique(pages.flatMap((page) => page.socials)),
-    evidence: pages.flatMap((page) => page.evidence).slice(0, 20),
-    warnings,
+    evidence: [...pages.flatMap((page) => page.evidence), ...(auditNote ? [auditNote] : [])].slice(
+      0,
+      20,
+    ),
+    warnings: warnings.slice(0, 12),
+    audit,
   };
 }

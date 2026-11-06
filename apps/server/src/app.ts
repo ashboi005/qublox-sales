@@ -22,6 +22,8 @@ import type { VerifyMailbox } from "./gmail";
 import { polishOffer } from "./offer-polish";
 import { leadSearchInput, leadSearchService, type Fetcher } from "./discovery";
 import { LlmDeferred } from "./llm-provider";
+import { emailVerifier } from "./email-verify";
+import { apiLedger } from "./readers";
 
 export function createApp(options: {
   db: Database;
@@ -31,6 +33,7 @@ export function createApp(options: {
   verifyMailbox?: VerifyMailbox;
   fetchModel?: (url: string, init: RequestInit) => Promise<Response>;
   fetchPlaces?: Fetcher;
+  fetchVerify?: Fetcher;
 }) {
   const { db, auth, origin, config } = options;
   const sales = createSalesService(db, config);
@@ -42,6 +45,7 @@ export function createApp(options: {
     (records, campaignId, actor) => sales.importRecords(records, campaignId, actor),
     options.fetchPlaces,
   );
+  const verifier = emailVerifier(db, config, options.fetchVerify);
   const id = (value: string) => z.uuid().parse(value);
   return new Elysia({ serve: { maxRequestBodySize: 1024 * 1024 } })
     .onError(({ error, set, code }) => {
@@ -153,6 +157,7 @@ export function createApp(options: {
                   .enum(["true", "false"])
                   .optional()
                   .transform((value) => value === "true"),
+                sort: z.enum(["recent", "opportunity"]).optional(),
               })
               .parse(query),
           ),
@@ -194,6 +199,11 @@ export function createApp(options: {
         .post("/prospects/:id/jobs", ({ params, body, actor }) => {
           const input = revisionSchema.extend({ kind: z.enum(["research", "draft"]) }).parse(body);
           return sales.enqueue(id(params.id), input.version, input.kind, actor);
+        })
+        // On demand only: one paid-tier-safe check per click, cached for 30 days.
+        .post("/prospects/:id/verify-email", async ({ params, body, actor }) => {
+          const input = z.object({ force: z.boolean().default(false) }).parse(body || {});
+          return verifier.verify(id(params.id), actor, input.force);
         })
         .post("/prospects/:id/jobs/cancel", ({ params, body, actor }) => {
           const input = revisionSchema.parse(body);
@@ -249,6 +259,17 @@ export function createApp(options: {
           leadSearchProvider: leads.provider(),
           placesRequestsThisMonth: await leads.placesUsed(),
           placesMonthlyLimit: config.PLACES_MONTHLY_REQUEST_LIMIT,
+          emailVerification: verifier.configured(),
+          verificationsThisMonth: await verifier.used(),
+          verificationMonthlyLimit: config.REOON_MONTHLY_LIMIT,
+          pageSpeedConfigured: Boolean(config.PAGESPEED_API_KEY),
+          readerFallback: config.PAGE_READER_FALLBACK
+            ? config.FIRECRAWL_API_KEY
+              ? "jina+firecrawl"
+              : "jina"
+            : "off",
+          firecrawlThisMonth: await apiLedger(db).used("firecrawl"),
+          firecrawlMonthlyLimit: config.FIRECRAWL_MONTHLY_LIMIT,
         }))
         .get("/mailboxes", ({ viewer }) => senders.list(viewer))
         .put("/mailboxes/me", ({ body, viewer }) =>

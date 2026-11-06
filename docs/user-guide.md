@@ -16,6 +16,9 @@ Nothing is ever sent just because a draft exists or was approved. Sending is alw
 | **Offer** (was "campaign"; **Polish with AI** on the Offers page tidies a rough one) | What you are pitching to a group, e.g. "WhatsApp booking site for clinics". Every draft is written against one offer. Make one offer per niche per month. |
 | **Evidence** | Facts about the business with a source link: website text, platform clues (Shopify, WordPress), its Google Maps listing, or a note you add. The AI may only use evidence. |
 | **Research** | The app reading the business's public website: homepage plus contact/about pages. It collects emails, phones, WhatsApp links, Instagram and page text. |
+| **Opportunity** (High / Medium / Low, 0–100) | How much Qublox could plausibly help, worked out from the listing and the website audit: no website, slow on mobile, not mobile friendly, no HTTPS, an old copyright year, no booking or store for the kind of business, lots of Google reviews. Hover the reasons on the lead. Research and drafting run on the highest first, and Prospects can sort by it. |
+| **Website audit** | Part of research. On-page checks plus Google PageSpeed's mobile speed. Problems become "audit" evidence, so a draft can say something concrete like "your homepage takes about 8 seconds to load on a phone". |
+| **Verify email** | An on-demand mailbox check (Reoon). Never automatic. Use **Verify email** on a lead, or tick **Verify each email first** when sending. Invalid addresses cannot be queued; risky ones (the server accepts any address) still can. Results last 30 days. |
 | **Signal score 0–3** | How strong the reason to reach out is. 0 = nothing useful (skipped, no message), 1 = a relevant fact, 2 = a specific likely need, 3 = a clear need or request. |
 | **Draft** | The suggested message. `{{sender}}` in it becomes the first name of whoever sends it. |
 | **Approve** | You confirm this exact text and recipient are OK. Any later edit removes the approval. |
@@ -40,7 +43,7 @@ Top navigation:
 There are two parts, and the first one is now a button in the portal.
 
 1. **Finding businesses: Prospects → Find leads.** Type the kind of business ("clothing stores") and the place ("Amritsar"), pick how many and an offer, and click **Find leads**. It uses Google Places when the server has a key (best), or OpenStreetMap for free (few contacts). See `docs/lead-search.md`. The Maps Chrome extension (Prospects → Import file) is still available as an optional alternative.
-2. **Finding contacts: website research** (runs on the server). For each business with a website it reads the homepage and up to three contact/about pages, and tries `/contact` when none is linked. It pulls emails, including Cloudflare-hidden and "name [at] site" ones, phones and WhatsApp links. It respects robots.txt and never logs in. On a 20-site real sample it found an email on 70% of sites and an email or phone on 85% (see `docs/research/2026-11-06-scraper-hit-rate.md`).
+2. **Finding contacts: website research** (runs on the server). For each business with a website it reads the homepage and up to three contact/about pages, and tries `/contact` when none is linked. It pulls emails, including Cloudflare-hidden and "name [at] site" ones, phones and WhatsApp links. It respects robots.txt and never logs in. If the site blocks simple requests or is built entirely in JavaScript, it is read through a real browser instead, first Jina Reader (free, no key) and then Firecrawl (free plan) if configured. Every researched site also gets a **website audit** (see the table above). On a 20-site real sample it found an email on 70% of sites and an email or phone on 85% (see `docs/research/2026-11-06-scraper-hit-rate.md`).
 
 Businesses **without a website** still import if they have a phone, email or Instagram. Their Maps listing becomes the evidence, for example "No website is listed", which is itself a good reason to pitch a website. Their channel defaults to WhatsApp.
 
@@ -69,4 +72,8 @@ Everyone can change their own password in **Settings → Your account**.
 - `AUTO_PIPELINE`: automatic research and drafting for new leads.
 - `DAILY_CONTACT_LIMIT`: team-wide contacts per 24 hours (10).
 - `COMPANY_NAME`: used in "Mania here from Qublox".
-- `GROQ_API_KEY` / `GEMINI_API_KEY` / `LLM_PROVIDER`: the AI used for drafts.
+- `GROQ_API_KEY` / `GEMINI_API_KEY` / `LLM_PROVIDER`: the AI used for drafts. With both keys they take turns.
+- `PAGESPEED_API_KEY`: mobile speed in the website audit (free).
+- `FIRECRAWL_API_KEY`, `FIRECRAWL_MONTHLY_LIMIT`: second fallback reader (free plan, capped at 900 a month).
+- `REOON_API_KEY`, `REOON_MONTHLY_LIMIT`: on-demand email verification (capped at 500 a month).
+- Keys and how to get them: `docs/research-tools.md`.

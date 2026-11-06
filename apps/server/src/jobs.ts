@@ -7,23 +7,29 @@ import type { SalesConfig } from "./config";
 import { generateDraft } from "./llm";
 import { logActivity, lockProspect, type ProspectRow } from "./sales";
 import { researchWebsite } from "./research";
+import { opportunityFor, pageSpeed } from "./audit";
+import { apiLedger, pageReader } from "./readers";
+import { fetchPublicResource } from "./safe-fetch";
 
 export type ClaimedJob = typeof jobs.$inferSelect;
 export async function claimJob(db: Database) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(713219)`);
-    const [job] = await tx
-      .select()
+    // Best opportunities first, then oldest.
+    const [found] = await tx
+      .select({ job: jobs })
       .from(jobs)
+      .innerJoin(prospects, eq(prospects.id, jobs.prospectId))
       .where(
         or(
           and(eq(jobs.status, "queued"), lte(jobs.availableAt, new Date())),
           and(eq(jobs.status, "running"), lt(jobs.lockedAt, new Date(Date.now() - 300_000))),
         ),
       )
-      .orderBy(asc(jobs.availableAt))
+      .orderBy(sql`${prospects.opportunity} desc nulls last`, asc(jobs.availableAt))
       .limit(1)
-      .for("update", { skipLocked: true });
+      .for("update", { of: jobs, skipLocked: true });
+    const job = found?.job;
     if (!job) return null;
     const p = await lockProspect(tx, job.prospectId);
     if (
@@ -80,7 +86,9 @@ export async function processJob(
     if (job.kind === "research" && !p.website)
       throw new Error("This business has no website to research. Add evidence manually.");
     if (job.kind === "research")
-      research = researchSchema.parse(await (dependencies?.research || researchWebsite)(p.website));
+      research = researchSchema.parse(
+        await (dependencies?.research || defaultResearch(db, config))(p.website),
+      );
     else {
       const [campaign] = await db
         .select()
@@ -121,13 +129,27 @@ export async function processJob(
         approvalVersion: null,
         lastError: "",
       };
+      if (research) {
+        const email = current.email || research.emails[0] || null;
+        const phone = current.phone || research.phones[0] || "";
+        const evidence = [
+          ...current.evidence.filter((item) => ["manual", "listing"].includes(item.kind)),
+          ...research.evidence,
+        ].slice(0, 30);
+        const opportunity = opportunityFor({
+          website: current.website,
+          email,
+          phone,
+          evidence,
+          audit: research.audit,
+        });
+        values.opportunity = opportunity.score;
+        values.opportunityReasons = opportunity.reasons;
+        values.evidence = evidence;
+      }
       if (research)
         Object.assign(values, {
           research,
-          evidence: [
-            ...current.evidence.filter((item) => ["manual", "listing"].includes(item.kind)),
-            ...research.evidence,
-          ].slice(0, 30),
           researchStatus: "complete",
           status: "researched",
           score: null,
@@ -157,9 +179,7 @@ export async function processJob(
           status: draft.score ? "review" : "skipped",
         });
       // Research flows straight into drafting when an offer and AI key are set.
-      const chain = Boolean(
-        research && config.AUTO_PIPELINE && campaign && aiConfigured(config),
-      );
+      const chain = Boolean(research && config.AUTO_PIPELINE && campaign && aiConfigured(config));
       if (chain) values.draftStatus = "queued";
       await tx.update(prospects).set(values).where(eq(prospects.id, p.id));
       await tx.update(jobs).set({ status: "done", error: "" }).where(eq(jobs.id, job.id));
@@ -241,4 +261,20 @@ export async function processJob(
     });
     console.error(JSON.stringify({ event: "job_failed", jobId: job.id, kind: job.kind, retry }));
   }
+}
+
+// Real research: our own fetch, then Jina/Firecrawl if needed, plus a PageSpeed audit.
+function defaultResearch(db: Database, config: SalesConfig) {
+  const ledger = apiLedger(db);
+  return (url: string) =>
+    researchWebsite(url, fetchPublicResource, {
+      reader: pageReader(db, config),
+      speed: config.PAGESPEED_API_KEY
+        ? async (target) => {
+            const result = await pageSpeed(target, config.PAGESPEED_API_KEY);
+            await ledger.record("pagespeed", Boolean(result));
+            return result;
+          }
+        : undefined,
+    });
 }

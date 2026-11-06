@@ -57,6 +57,11 @@ export const prospects = pgTable(
       .$type<"unverified" | "unknown" | "valid" | "invalid" | "catch_all">()
       .notNull()
       .default("unverified"),
+    // When the email was last checked with the verification service (on demand only).
+    emailCheckedAt: timestamp("email_checked_at"),
+    // 0-100: how much a web studio could plausibly help, from the audit and listing.
+    opportunity: integer("opportunity"),
+    opportunityReasons: jsonb("opportunity_reasons").$type<string[]>().notNull().default([]),
     lastError: text("last_error").notNull().default(""),
     contactedAt: timestamp("contacted_at"),
     followUpAt: timestamp("follow_up_at"),
@@ -67,6 +72,7 @@ export const prospects = pgTable(
     index("prospect_status_idx").on(table.status),
     index("prospect_follow_up_idx").on(table.followUpAt),
     index("prospect_phone_key_idx").on(table.phoneKey),
+    index("prospect_opportunity_idx").on(table.opportunity),
   ],
 );
 
@@ -157,4 +163,17 @@ export const leadSearches = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [index("lead_search_created_idx").on(table.createdAt)],
+);
+
+// Calls to free-tier services (email verification, page readers, PageSpeed), so monthly
+// allowances can be enforced locally before a provider would start charging.
+export const apiUsage = pgTable(
+  "api_usage",
+  {
+    id: text("id").primaryKey(),
+    service: text("service").$type<"reoon" | "jina" | "firecrawl" | "pagespeed">().notNull(),
+    ok: integer("ok").notNull().default(1),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("api_usage_service_created_idx").on(table.service, table.createdAt)],
 );

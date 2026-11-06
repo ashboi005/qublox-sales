@@ -7,6 +7,7 @@ import { prospectInput, manualEvidenceInput } from "@qublox-sales/shared";
 import { salesConfig } from "../src/config";
 import { createSalesService } from "../src/sales";
 import { createDeliveryService } from "../src/deliveries";
+import { emailVerifier } from "../src/email-verify";
 import type { SendEmail } from "../src/gmail";
 import { secretBox } from "../src/secret-box";
 import type { Viewer } from "../src/mailboxes";
@@ -381,4 +382,51 @@ test("members send only from their own Gmail, and recipients see that sender's n
   expect(sent).toEqual(["Hi team,\n\nMania here from Qublox.\n\nThanks,\nMania"]);
   const [row] = await db.select().from(emailOutbox).where(eq(emailOutbox.prospectId, p.id));
   expect(row!.body).toContain("{{sender}}");
+});
+
+test("email verification runs only on demand, is cached, capped, and blocks queueing invalid addresses", async () => {
+  await db.$client.query("TRUNCATE api_usage");
+  const p = await approved();
+  const calls: string[] = [];
+  let answer = "safe";
+  const verifier = emailVerifier(
+    db,
+    { ...config, REOON_API_KEY: "fake-reoon", REOON_MONTHLY_LIMIT: 3 },
+    async (url) => {
+      calls.push(new URL(url).searchParams.get("email")!);
+      expect(new URL(url).searchParams.get("mode")).toBe("power");
+      return Response.json({ status: answer });
+    },
+  );
+  // Approval alone never verified anything.
+  expect(calls).toEqual([]);
+  const first = await verifier.verify(p.id, "test");
+  expect(first).toMatchObject({ status: "valid", cached: false });
+  expect(first.prospect.emailCheckedAt).toBeInstanceOf(Date);
+  // The approved version is untouched, so the approval stays valid.
+  expect(first.prospect.version).toBe(p.version);
+  expect((await verifier.verify(p.id, "test")).cached).toBe(true);
+  expect(calls).toHaveLength(1);
+  answer = "disabled";
+  expect((await verifier.verify(p.id, "test", true)).status).toBe("invalid");
+  const service = createDeliveryService(db, config, async () => ({ messageId: "fake" }));
+  await expect(service.queue(queue(p), admin)).rejects.toThrow("failed verification");
+  // Editing the address resets the check.
+  const edited = await sales.updateProspect(
+    p.id,
+    p.version,
+    prospectInput.parse({ ...p, email: "fixed@example.com" }),
+    "test",
+  );
+  expect(edited.verificationStatus).toBe("unverified");
+  expect(edited.emailCheckedAt).toBeNull();
+  await verifier.verify(p.id, "test");
+  await expect(verifier.verify(p.id, "test", true)).rejects.toThrow("allowance");
+  expect(calls).toHaveLength(3);
+  const log = await db.select().from(activities).where(eq(activities.prospectId, p.id));
+  expect(log.filter((a) => a.kind === "email_verified")).toHaveLength(3);
+  const unconfigured = emailVerifier(db, config, async () => {
+    throw new Error("must not call");
+  });
+  await expect(unconfigured.verify(p.id, "test")).rejects.toThrow("REOON_API_KEY");
 });

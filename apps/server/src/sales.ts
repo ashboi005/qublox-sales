@@ -2,6 +2,7 @@ import { emailOutbox } from "@qublox-sales/db/schema/delivery";
 import { createMailboxService, type Viewer } from "./mailboxes";
 import { contactCapacity } from "./contact-cap";
 import { aiConfigured, limitsFor, providerFor, providersFor } from "./llm-provider";
+import { opportunityFor } from "./audit";
 import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql, sum } from "drizzle-orm";
 import type { Database } from "@qublox-sales/db";
 import {
@@ -243,6 +244,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
       campaignId?: string;
       page?: number;
       due?: boolean;
+      sort?: "recent" | "opportunity";
     }) {
       const page = query.page || 1;
       const search = query.q?.trim().replace(/[\\%_]/g, "\\$&");
@@ -266,7 +268,11 @@ export function createSalesService(db: Database, config: SalesConfig) {
           .select()
           .from(prospects)
           .where(where)
-          .orderBy(desc(prospects.updatedAt))
+          .orderBy(
+            ...(query.sort === "opportunity"
+              ? [sql`${prospects.opportunity} desc nulls last`, desc(prospects.updatedAt)]
+              : [desc(prospects.updatedAt)]),
+          )
           .limit(50)
           .offset((page - 1) * 50),
         db.select({ value: count() }).from(prospects).where(where),
@@ -312,6 +318,16 @@ export function createSalesService(db: Database, config: SalesConfig) {
             ...normalized,
             id: newId(),
             sourceCapturedAt: input.sourceCapturedAt ? new Date(input.sourceCapturedAt) : null,
+            // A first estimate from the listing; research refines it with the site audit.
+            ...(() => {
+              const o = opportunityFor({
+                website: normalized.website,
+                email: input.email || null,
+                phone: input.phone || "",
+                evidence: seed ? [seed] : [],
+              });
+              return { opportunity: o.score, opportunityReasons: o.reasons };
+            })(),
           })
           .onConflictDoNothing({ target: prospects.domain })
           .returning();
@@ -375,6 +391,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
           sourceCapturedAt: input.sourceCapturedAt ? new Date(input.sourceCapturedAt) : null,
           approvalVersion: null,
           verificationStatus: input.email === p.email ? p.verificationStatus : "unverified",
+          emailCheckedAt: input.email === p.email ? p.emailCheckedAt : null,
           status: p.draftBody ? "review" : "new",
           draftCampaignVersion: input.campaignId === p.campaignId ? p.draftCampaignVersion : null,
           ...(websiteChanged

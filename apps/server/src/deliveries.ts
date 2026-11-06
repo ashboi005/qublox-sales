@@ -133,6 +133,12 @@ export function createDeliveryService(
           const p = await lockProspect(tx, item.id, item.version);
           assertApproved(p);
           await assertNotSuppressed(tx, p);
+          if (p.verificationStatus === "invalid")
+            throw new AppError(
+              422,
+              "EMAIL_INVALID",
+              `${p.name}: the email failed verification. Correct the address or contact them another way.`,
+            );
           const [existing] = await tx
             .select({ id: emailOutbox.id })
             .from(emailOutbox)
@@ -285,6 +291,12 @@ export function createDeliveryService(
           if (!p) throw new Error("Missing prospect");
           assertApproved(p);
           await assertNotSuppressed(tx, p);
+          if (p.verificationStatus === "invalid")
+            throw new AppError(
+              422,
+              "EMAIL_INVALID",
+              `${p.name}: the email failed verification. Correct the address or contact them another way.`,
+            );
           if (!sameSnapshot(row, p)) conflict();
         } catch {
           await tx

@@ -15,12 +15,15 @@ import {
   styleWarnings,
   whatsappLink,
   unsupportedPlaceholders,
+  verificationLabel,
+  verifyEmailResult,
 } from "@qublox-sales/shared";
 import { authClient } from "@/lib/auth-client";
 import { api, date, message, time } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import { campaignsSchema } from "./prospect-entry";
 import { External, Loading, Notice, Status } from "./workspace";
+import { AuditSummary, OpportunityBadge } from "./opportunity";
 
 type Action =
   | "approve"
@@ -287,19 +290,75 @@ export function ProspectReview({ id }: { id: string }) {
             </span>
           </div>
           <dl className="facts">
+            <dt>Opportunity</dt>
+            <dd>
+              {p.opportunity === null ? (
+                "Not scored yet"
+              ) : (
+                <>
+                  <OpportunityBadge score={p.opportunity} />
+                  {p.opportunityReasons.length > 0 && (
+                    <span className="hint"> {p.opportunityReasons.join(" · ")}</span>
+                  )}
+                </>
+              )}
+            </dd>
             <dt>Platform</dt>
             <dd>{p.research?.platform || "Not researched"}</dd>
+            {p.research?.audit && (
+              <>
+                <dt>Site audit</dt>
+                <dd>
+                  <AuditSummary audit={p.research.audit} />
+                </dd>
+              </>
+            )}
             <dt>Email</dt>
             <dd>
               {p.email || "Not found"}
               {p.email && (
-                <span className="hint">
+                <>
                   {" "}
-                  ·{" "}
-                  {p.verificationStatus === "valid"
-                    ? "Mailbox check passed; inbox delivery is not guaranteed"
-                    : "Unverified — no mailbox check performed"}
-                </span>
+                  <span className={`verify-badge verify-${p.verificationStatus}`}>
+                    {verificationLabel[p.verificationStatus]}
+                  </span>
+                  {p.emailCheckedAt && (
+                    <span className="hint"> · checked {date(p.emailCheckedAt)}</span>
+                  )}
+                  {settings.data?.emailVerification && (
+                    <button
+                      type="button"
+                      className="link-button"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        setError("");
+                        setNotice("Checking the mailbox. This can take up to a minute…");
+                        try {
+                          const result = await api(
+                            `/prospects/${p.id}/verify-email`,
+                            verifyEmailResult,
+                            {
+                              method: "POST",
+                              body: { force: p.verificationStatus !== "unverified" },
+                            },
+                          );
+                          detail.reload();
+                          setNotice(
+                            `${p.email}: ${verificationLabel[result.status]}.${result.status === "valid" ? " Inbox delivery is still not guaranteed." : ""}`,
+                          );
+                        } catch (e) {
+                          setNotice("");
+                          setError(message(e));
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      {p.verificationStatus === "unverified" ? "Verify email" : "Check again"}
+                    </button>
+                  )}
+                </>
               )}
             </dd>
             <dt>Phone</dt>

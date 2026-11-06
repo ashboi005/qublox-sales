@@ -16,11 +16,13 @@ import type { Campaign, Prospect } from "@qublox-sales/shared";
 import { createSalesService } from "../src/sales";
 import { claimJob, processJob } from "../src/jobs";
 import { generateDraft } from "../src/llm";
+import { pageReader } from "../src/readers";
 import {
   jobs,
   leadSearches,
   llmUsage,
   llmProviderState,
+  apiUsage,
   prospects,
 } from "@qublox-sales/db/schema/sales";
 import { eq } from "drizzle-orm";
@@ -1362,4 +1364,37 @@ test("polishing an incomplete offer reports the missing field, not an AI failure
   );
   expect(response.status).toBe(422);
   expect(data.error.code).toBe("VALIDATION");
+});
+
+test("page readers try Jina first, then Firecrawl within its monthly allowance", async () => {
+  await db.delete(apiUsage);
+  const used: string[] = [];
+  const reader = pageReader(
+    db,
+    salesConfig({ ...config, FIRECRAWL_API_KEY: "fake-firecrawl", FIRECRAWL_MONTHLY_LIMIT: 1 }),
+    async (url, init) => {
+      used.push(url.includes("jina.ai") ? "jina" : "firecrawl");
+      if (url.includes("jina.ai")) return new Response("rate limited", { status: 429 });
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        formats: ["html"],
+        onlyMainContent: false,
+      });
+      return Response.json({
+        success: true,
+        data: {
+          html: `<html><body><p>${"Family run bakery with fresh bread every morning. ".repeat(6)}</p></body></html>`,
+          metadata: { url: "https://93.184.215.14/", statusCode: 200 },
+        },
+      });
+    },
+  )!;
+  const page = await reader("https://93.184.215.14/");
+  expect(page.via).toBe("firecrawl");
+  expect(used).toEqual(["jina", "firecrawl"]);
+  // The local Firecrawl cap is reached, so only free Jina is tried and the read fails cleanly.
+  await expect(reader("https://93.184.215.14/")).rejects.toThrow("full browser");
+  expect(used).toEqual(["jina", "firecrawl", "jina"]);
+  await expect(reader("http://127.0.0.1/")).rejects.toThrow();
+  expect(used).toHaveLength(3);
+  expect(pageReader(db, salesConfig({ ...config, PAGE_READER_FALLBACK: "false" }))).toBeNull();
 });

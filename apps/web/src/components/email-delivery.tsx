@@ -9,6 +9,7 @@ import {
   settingsSchema,
   type Prospect,
   type Delivery,
+  verifyEmailResult,
 } from "@qublox-sales/shared";
 import { api, message, date } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
@@ -37,7 +38,8 @@ export function EmailQueueForm({
     [end, setEnd] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [verifyFirst, setVerifyFirst] = useState(settings.emailVerification);
   const signature = settings.mailboxes.map((m) => m.id).join(",");
   useEffect(() => {
     setSenders(signature ? signature.split(",") : []);
@@ -60,10 +62,34 @@ export function EmailQueueForm({
         setError("");
         setNotice("");
         try {
+          // "Verify & send": check each address that is not already verified, drop invalid
+          // ones and queue the rest. Only runs because the button was clicked.
+          let selected = prospects;
+          const failed: string[] = [];
+          if (verifyFirst && settings.emailVerification) {
+            selected = [];
+            for (const p of prospects) {
+              if (p.verificationStatus === "valid") {
+                selected.push(p);
+                continue;
+              }
+              setNotice(`Verifying ${p.email}…`);
+              const checked = await api(`/prospects/${p.id}/verify-email`, verifyEmailResult, {
+                method: "POST",
+                body: {},
+              });
+              if (checked.status === "invalid") failed.push(`${p.name} (${p.email})`);
+              else selected.push(p);
+            }
+            if (!selected.length) {
+              setNotice("");
+              throw new Error(`Nothing queued. Failed verification: ${failed.join(", ")}.`);
+            }
+          }
           const result = await api("/deliveries", queueEmailResult, {
             method: "POST",
             body: {
-              prospects: prospects.map((p) => ({ id: p.id, version: p.version })),
+              prospects: selected.map((p) => ({ id: p.id, version: p.version })),
               senderIds: senders,
               mode,
               ...(mode === "spread"
@@ -75,7 +101,7 @@ export function EmailQueueForm({
             },
           });
           setNotice(
-            `${result.queued} email${result.queued === 1 ? "" : "s"} queued. Sending allowances may postpone the requested time.`,
+            `${result.queued} email${result.queued === 1 ? "" : "s"} queued. Sending allowances may postpone the requested time.${failed.length ? ` Skipped after failing verification: ${failed.join(", ")}.` : ""}`,
           );
           onQueued();
         } catch (e) {
@@ -156,6 +182,17 @@ export function EmailQueueForm({
             </label>
           </div>
         )}
+        {settings.emailVerification && (
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={verifyFirst}
+              onChange={(e) => setVerifyFirst(e.target.checked)}
+            />
+            Verify each email first and skip invalid ones (uses 1 check per unverified address,{" "}
+            {settings.verificationsThisMonth}/{settings.verificationMonthlyLimit} used this month)
+          </label>
+        )}
         <p className="hint">
           Only the exact approved recipient and message are queued. Editing cancels queued copies.
           Limits can delay sending beyond this window.
@@ -163,10 +200,14 @@ export function EmailQueueForm({
         <div>
           <button className="primary" disabled={!prospects.length || !senders.length}>
             {busy
-              ? "Queueing…"
-              : mode === "spread"
-                ? `Schedule ${prospects.length === 1 ? "email" : `${prospects.length} emails`}`
-                : "Send now"}
+              ? "Working…"
+              : `${verifyFirst && settings.emailVerification ? "Verify & " : ""}${
+                  mode === "spread"
+                    ? `${verifyFirst && settings.emailVerification ? "schedule" : "Schedule"} ${prospects.length === 1 ? "email" : `${prospects.length} emails`}`
+                    : verifyFirst && settings.emailVerification
+                      ? "send now"
+                      : "Send now"
+                }`}
           </button>
         </div>
       </fieldset>

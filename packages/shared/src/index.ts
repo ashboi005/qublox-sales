@@ -128,7 +128,7 @@ export const evidenceSchema = z.object({
   url: webUrl.pipe(z.string().min(1)),
   title: z.string().max(200),
   text: z.string().trim().min(1).max(3000),
-  kind: z.enum(["website", "technology", "product", "manual", "listing"]),
+  kind: z.enum(["website", "technology", "product", "manual", "listing", "audit"]),
   retrievedAt: z.iso.datetime(),
 });
 export type Evidence = z.infer<typeof evidenceSchema>;
@@ -161,6 +161,22 @@ export const manualEvidenceInput = z.object({
   text: z.string().trim().min(1).max(3000),
 });
 
+// Measured and observed website problems. Every field is optional because PageSpeed can
+// be unavailable and readers can return partial pages.
+export const auditSchema = z.object({
+  https: z.boolean().optional(),
+  mobileViewport: z.boolean().optional(),
+  copyrightYear: z.number().int().optional(),
+  booking: z.boolean().optional(),
+  store: z.boolean().optional(),
+  whatsapp: z.boolean().optional(),
+  contactForm: z.boolean().optional(),
+  // Google PageSpeed Insights, mobile.
+  performance: z.number().int().min(0).max(100).optional(),
+  largestPaintSeconds: z.number().optional(),
+  readVia: z.enum(["direct", "jina", "firecrawl"]).optional(),
+});
+export type Audit = z.infer<typeof auditSchema>;
 export const researchSchema = z.object({
   summary: z.string().max(4000),
   platform: z.string().max(100),
@@ -169,6 +185,7 @@ export const researchSchema = z.object({
   socials: z.array(webUrl).max(20),
   evidence: z.array(evidenceSchema).max(30),
   warnings: z.array(z.string().max(300)).max(12),
+  audit: auditSchema.optional(),
 });
 export type Research = z.infer<typeof researchSchema>;
 
@@ -198,6 +215,9 @@ export const prospectSchema = prospectFields.extend({
   approvalVersion: z.number().nullable(),
   draftCampaignVersion: z.number().nullable(),
   verificationStatus: z.enum(["unverified", "unknown", "valid", "invalid", "catch_all"]),
+  emailCheckedAt: z.string().nullable().default(null),
+  opportunity: z.number().nullable().default(null),
+  opportunityReasons: z.array(z.string()).default([]),
   lastError: z.string(),
   contactedAt: z.string().nullable(),
   followUpAt: z.string().nullable(),
@@ -205,6 +225,18 @@ export const prospectSchema = prospectFields.extend({
   updatedAt: z.string(),
 });
 export type Prospect = z.infer<typeof prospectSchema>;
+export const verifyEmailResult = z.object({
+  status: z.enum(["unknown", "valid", "invalid", "catch_all"]),
+  cached: z.boolean(),
+  prospect: prospectSchema,
+});
+export const verificationLabel: Record<Prospect["verificationStatus"], string> = {
+  unverified: "Not verified",
+  valid: "Verified",
+  catch_all: "Risky: server accepts any address",
+  invalid: "Invalid",
+  unknown: "Could not be checked",
+};
 export const activitySchema = z.object({
   id: z.uuid(),
   kind: z.string(),
@@ -310,6 +342,13 @@ export const settingsSchema = z.object({
   autoPipeline: z.boolean(),
   leadSearchProvider: z.enum(["google", "openstreetmap"]).default("openstreetmap"),
   placesRequestsThisMonth: z.number().default(0),
+  emailVerification: z.boolean().default(false),
+  verificationsThisMonth: z.number().default(0),
+  verificationMonthlyLimit: z.number().default(0),
+  pageSpeedConfigured: z.boolean().default(false),
+  readerFallback: z.enum(["off", "jina", "jina+firecrawl"]).default("off"),
+  firecrawlThisMonth: z.number().default(0),
+  firecrawlMonthlyLimit: z.number().default(0),
   placesMonthlyLimit: z.number().default(0),
   mailboxes: z.array(mailboxSchema),
   role: z.enum(["admin", "member"]),

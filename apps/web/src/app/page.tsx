@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Plus, Upload, ArrowRight, Search } from "lucide-react";
-import { listSchema, overviewSchema, statuses } from "@qublox-sales/shared";
+import { listSchema, overviewSchema, statuses, verificationLabel } from "@qublox-sales/shared";
+import { OpportunityBadge } from "@/components/opportunity";
 import { Workspace, Loading, Empty, Notice, Status } from "@/components/workspace";
 import { campaignsSchema, ProspectEntry } from "@/components/prospect-entry";
 import { BulkEmailQueue } from "@/components/email-delivery";
@@ -24,12 +25,14 @@ function Prospects() {
   const [status, setStatus] = useState("");
   const [campaign, setCampaign] = useState("");
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<"recent" | "opportunity">("recent");
   const [entry, setEntry] = useState<"add" | "import" | "find" | null>(null);
   const query = new URLSearchParams({
     page: String(page),
     ...(search ? { q: search } : {}),
     ...(status ? { status } : {}),
     ...(campaign ? { campaignId: campaign } : {}),
+    ...(sort === "opportunity" ? { sort } : {}),
   });
   const list = useResource(`/prospects?${query}`, listSchema);
   const overview = useResource("/overview", overviewSchema);
@@ -197,6 +200,19 @@ function Prospects() {
               ))}
             </select>
           </label>
+          <label>
+            <span className="visually-hidden">Sort</span>
+            <select
+              value={sort}
+              onChange={(e) => {
+                setSort(e.target.value as "recent" | "opportunity");
+                setPage(1);
+              }}
+            >
+              <option value="recent">Recently updated</option>
+              <option value="opportunity">Best opportunity first</option>
+            </select>
+          </label>
         </form>
         <button className="text-button" onClick={reload} disabled={list.loading}>
           Refresh
@@ -235,6 +251,7 @@ function Prospects() {
                   <th>Business / domain</th>
                   <th>Offer</th>
                   <th>Channel</th>
+                  <th>Opportunity</th>
                   <th>Signal</th>
                   <th>Status</th>
                   <th>Last contact</th>
@@ -257,7 +274,7 @@ function Prospects() {
                       <small>
                         {p.channel === "email"
                           ? p.email
-                            ? "Unverified contact"
+                            ? verificationLabel[p.verificationStatus]
                             : "Email needed"
                           : p.channel === "whatsapp"
                             ? p.phone
@@ -265,6 +282,16 @@ function Prospects() {
                               : "Phone needed"
                             : "Manual DM"}
                       </small>
+                    </td>
+                    <td>
+                      {p.opportunity === null ? (
+                        "—"
+                      ) : (
+                        <>
+                          <OpportunityBadge score={p.opportunity} />
+                          {p.opportunityReasons[0] && <small>{p.opportunityReasons[0]}</small>}
+                        </>
+                      )}
                     </td>
                     <td>{p.score === null ? "—" : `${p.score} / 3`}</td>
                     <td>
