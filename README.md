@@ -35,6 +35,8 @@ Local ports: web **3001**, API **3100**, PostgreSQL **5438** on loopback. The AP
 
 `setup` creates ignored local environment files with random secrets . It refuses to overwrite existing configuration. If setup reports existing files, use them or edit them deliberately; do not delete a database password while keeping the corresponding PostgreSQL volume.
 
+New here? Read [docs/user-guide.md](docs/user-guide.md) for the terms, where everything is, and the day-to-day flow.
+
 Dashboard access is stored in PostgreSQL. Personal Gmail addresses are fine; branded mailboxes are not required. `team:add` creates an active member (add `--role admin` for an admin), `team:role --email address --role admin|member` changes a role, and `team:remove --email address` disables membership and revokes sessions immediately. Each teammate connects their own Gmail in Settings; see [docs/gmail.md](docs/gmail.md). Public signup remains closed. An administrator can reset a password and re-enable membership using `team:add --reset-password`; passwords need at least 12 characters. There is no email-verification service or public registration route to manage.
 
 For an existing installation, run migrations, then run `bun run team:migrate` once before removing the old `ALLOWED_EMAILS` variable. It migrates only matching existing users and never reactivates an explicitly disabled membership. Alternatively, pass `--emails comma-separated-addresses`. New installations need no allowlist.

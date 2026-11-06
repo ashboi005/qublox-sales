@@ -88,3 +88,14 @@ A separate-model review identified and verified fixes for generic CONN errors be
 Both saved AI keys were tested through direct provider calls with fictional workshop evidence and a dedicated local ledger. Groq GPT-OSS 20B and Gemini 3.5 Flash-Lite produced validated score/evidence-linked draft JSON. Google rejected 2.5 Lite for new users and recommended 3.5; the Gemini default and list-price estimates were corrected. Gemini now uses the native API with an explicit object response schema. Normal tests and workflow simulation remain free of LLM calls; the optional live model-check command is separate.
 
 The extended real-HTTP workflow simulation queues and dispatches an approved email exactly once through an injected fake SMTP transport, then verifies the persisted contact/reminder. It opens no SMTP connection and sends no email/DM. Real Gmail credentials were not supplied, so real-account authentication and delivery remain unverified. Private configuration keeps `EMAIL_SENDING_ENABLED=false` and an empty sender list; provider keys remain server-only and ignored by Git/Docker.
+
+## Team senders, humanized drafts, WhatsApp, automation, scraper — 6 November 2026
+
+Continued in Claude Code after Codex reached its usage limit; the staged Gmail slice was verified and committed first.
+
+- `bun run check-types`: all six workspaces pass. `bun run test`: 61 pass. `bun run test:integration`: 41 pass. `bun run simulate`: passes (now also connects a Gmail sender through the API with a stubbed login check, renders `{{sender}}` as "Simran", and records reply → meeting set). Server production bundle builds.
+- Live drafting check (`bun run models:check`, fictional evidence, nothing sent): the first humanized prompt exposed "Qublox here from Qublox", an invented sender "Alex", a one-line body and a copied filler sentence. After the prompt and deterministic layout repair, both Groq GPT-OSS 20B and Gemini 3.5 Flash-Lite returned correctly laid out drafts with `{{sender}}`, no dashes and no copied phrasing.
+- Gmail senders: App Passwords are encrypted (AES-256-GCM, tamper and wrong-key tests), never returned by the API or settings, and members are refused other teammates' senders. Real Gmail login was not exercised; tests stub it.
+- Scraper: 20 real sites, read-only, robots respected. Email found on 9 → 14 sites, readable 14 → 19, junk addresses 5 → 0 (`docs/research/2026-11-06-scraper-hit-rate.md`).
+- Password change: integration test plus an HTTP smoke test on the running local dev stack (sign-in, settings, change password, all pages 200) with a throwaway local account that was then deleted. The Chrome extension was not connected, so no screenshot-level UI check was done this round.
+- VPS database: the five migrations up to team senders were applied with the owner's permission; the WhatsApp/no-website migration (`20261106133216_boring_payback`) is not yet applied there.

@@ -17,7 +17,7 @@ The application creates a downloadable ZIP during `bun run dev` and `bun run bui
 5. The extension opens Qublox. Sign in if necessary, review the incoming collection, choose an offer, and select **Confirm import**. No prospect is written automatically, and the extension never receives your login cookie, password, or AI provider key.
 6. Export JSON or Excel-compatible UTF-8 CSV at any time when collection is stopped. Clearing the extension collection does not delete imported prospects.
 
-The current pipeline requires a website. Places without one stay in the collection/export and appear as missing in the import preview. Add their actual website in the preview JSON, or import the other valid rows; invalid rows are reported separately. Collected emails/phones are not verified.
+Places without a website import when they have a phone (or email/Instagram). Their rating, review count and address become a "Google Maps listing" evidence item, and their channel defaults to WhatsApp. Places with no website, email or phone are reported as invalid rows. Collected emails/phones are not verified.
 
 ## Hotel fixes
 
