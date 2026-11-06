@@ -1,25 +1,61 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, symlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 
+// One root .env for everything; apps/server/.env links to it. The web app needs none.
 const root = resolve(import.meta.dir, "..");
 const secret = randomBytes(32).toString("hex");
 const password = randomBytes(20).toString("hex");
-const files: Record<string, string> = {
-  ".env": `POSTGRES_PASSWORD=${password}\nDATABASE_URL=postgresql://postgres:${password}@localhost:5438/qublox_sales\nAPP_ORIGIN=http://localhost:3001\nBETTER_AUTH_SECRET=${secret}\nLLM_PROVIDER=groq\nGROQ_API_KEY=\nGEMINI_API_KEY=\n# Empty selects the provider default: GPT-OSS 20B or Gemini 3.5 Flash-Lite.\nLLM_MODEL=\n# With both keys, drafts alternate between Groq and Gemini. Limits default under each free tier; see docs/ai.md.\nLLM_ROTATE=true\nLLM_MONTHLY_BUDGET_USD=1\nGOOGLE_PLACES_API_KEY=\nPLACES_MONTHLY_REQUEST_LIMIT=900\nPAGESPEED_API_KEY=\nFIRECRAWL_API_KEY=\nREOON_API_KEY=\nAUTO_PIPELINE=true\nDAILY_CONTACT_LIMIT=10\n# Master switch for Gmail sending. Teammates connect their own Gmail in Settings.\nEMAIL_SENDING_ENABLED=false\nCOMPANY_NAME=Qublox\nEMAIL_MIN_INTERVAL_SECONDS=120\nEMAIL_ACCOUNT_INTERVAL_SECONDS=600\n`,
-  "apps/server/.env.local": `NODE_ENV=development\nBETTER_AUTH_SECRET=${secret}\nBETTER_AUTH_URL=http://localhost:3001\nCORS_ORIGIN=http://localhost:3001\nDATABASE_URL=postgresql://postgres:${password}@localhost:5438/qublox_sales\nLLM_PROVIDER=groq\nGROQ_API_KEY=\nGEMINI_API_KEY=\n# Empty selects the provider default: GPT-OSS 20B or Gemini 3.5 Flash-Lite.\nLLM_MODEL=\n# With both keys, drafts alternate between Groq and Gemini. Limits default under each free tier; see docs/ai.md.\nLLM_ROTATE=true\nLLM_MONTHLY_BUDGET_USD=1\nGOOGLE_PLACES_API_KEY=\nPLACES_MONTHLY_REQUEST_LIMIT=900\nPAGESPEED_API_KEY=\nFIRECRAWL_API_KEY=\nREOON_API_KEY=\nAUTO_PIPELINE=true\nDAILY_CONTACT_LIMIT=10\n# Master switch for Gmail sending. Teammates connect their own Gmail in Settings.\nEMAIL_SENDING_ENABLED=false\nCOMPANY_NAME=Qublox\nEMAIL_MIN_INTERVAL_SECONDS=120\nEMAIL_ACCOUNT_INTERVAL_SECONDS=600\n`,
-  "apps/web/.env.local":
-    "NEXT_PUBLIC_SERVER_URL=http://localhost:3001\nSERVER_URL=http://localhost:3100\n",
-};
-if (Object.keys(files).some((file) => existsSync(resolve(root, file)))) {
-  console.log(
-    "Configuration already exists; no secrets or files were overwritten. See .env.example and README.md for configuration.",
-  );
+const local = `postgresql://postgres:${password}@localhost:5438/qublox_sales`;
+const env = `# The one environment file for local development, migrations, team commands and Coolify.
+
+# Database. Point DATABASE_URL at your VPS when ready; tests always use LOCAL_DATABASE_URL.
+POSTGRES_PASSWORD=${password}
+DATABASE_URL=${local}
+LOCAL_DATABASE_URL=${local}
+
+# Auth and site
+BETTER_AUTH_SECRET=${secret}
+APP_ORIGIN=http://localhost:3001
+
+# Local development only (API on PORT, site on localhost:3001). Docker/Coolify sets these itself.
+BETTER_AUTH_URL=http://localhost:3001
+CORS_ORIGIN=http://localhost:3001
+PORT=3100
+
+# AI drafting: with both keys, Groq and Gemini take turns (docs/ai.md)
+LLM_PROVIDER=groq
+GROQ_API_KEY=
+GEMINI_API_KEY=
+LLM_MODEL=
+LLM_ROTATE=true
+LLM_MONTHLY_BUDGET_USD=1
+
+# Finding leads (docs/lead-search.md)
+GOOGLE_PLACES_API_KEY=
+PLACES_MONTHLY_REQUEST_LIMIT=900
+
+# Research tools (docs/research-tools.md)
+PAGESPEED_API_KEY=
+FIRECRAWL_API_KEY=
+REOON_API_KEY=
+
+# Pipeline and sending
+AUTO_PIPELINE=true
+DAILY_CONTACT_LIMIT=10
+EMAIL_SENDING_ENABLED=false
+COMPANY_NAME=Qublox
+EMAIL_MIN_INTERVAL_SECONDS=120
+EMAIL_ACCOUNT_INTERVAL_SECONDS=600
+`;
+const path = resolve(root, ".env");
+if (existsSync(path)) {
+  console.log("A .env already exists; nothing was overwritten. See .env.example and README.md.");
 } else {
-  for (const [file, content] of Object.entries(files)) {
-    writeFileSync(resolve(root, file), content, { mode: 0o600, flag: "wx" });
-  }
+  writeFileSync(path, env, { mode: 0o600, flag: "wx" });
   console.log(
-    "Created private, ignored local configuration with random secrets. Provision your local account with: bun run team:add --email dev@qublox.local --name 'Local user'.",
+    "Created a private .env with random secrets. Provision your local account with: bun run team:add --email dev@qublox.local --name 'Local user' --role admin.",
   );
 }
+const serverLink = resolve(root, "apps/server/.env");
+if (!existsSync(serverLink)) symlinkSync("../../.env", serverLink);

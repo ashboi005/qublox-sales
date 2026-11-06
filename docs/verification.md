@@ -129,3 +129,16 @@ Checks:
 Proof: ignored local artifacts in `artifacts/ui/`, including `compare.html`, login before/after and desktop/mobile captures. Only login has an original rendered baseline; the old production app bundle predated Claude's new response contracts, so no app-screen before/after usability claim is made. QA uses fictional local simulation data. No additional imagery or placeholders are needed.
 
 The core brand changes were included by a concurrent Claude commit (`68a2d4b`) alongside its independent discovery improvements. This finishing slice changes only CSS and design/verification documents; it preserves that history. No backend, shared schema, database, environment, sending or AI behavior was changed by the UI work. The VPS database was never migrated or written. Temporary QA servers on 3303/3310 were stopped; the user's existing development servers and PostgreSQL were left running.
+
+## 7 November 2026: live end-to-end run
+
+Run against the isolated `qublox_sales_test` database with real keys; nothing was sent.
+
+- Google Places: 1 request per niche (dental, skin, physiotherapy clinics in Amritsar), 18–19 leads added each.
+- Research: 5 sites per niche, read directly or through Jina; Firecrawl read a page when Jina was forced to fail; robots.txt refusals fail once.
+- PageSpeed: real mobile scores (38–100) and load times (0.8–27.5 s) on researched sites.
+- Reoon: one on-demand check returned "valid".
+- Groq and Gemini alternated (calls split about evenly); every draft passed evidence validation.
+- Drafts quote measured problems in plain words ("I opened your site on my phone and it took about 6 seconds to load") and leave speed out for fast sites.
+
+Bugs found and fixed in the same session: a trickling page could hang the worker (hard 15 s fetch deadline now), YouTube and directory links were treated as websites, audit evidence was trimmed before reaching the model, "restore" counted as retail, and truncated "Kind," sign-offs.

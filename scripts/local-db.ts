@@ -2,8 +2,8 @@ import { resolve } from "node:path";
 import { parseEnv } from "node:util";
 
 // Test, simulation and model-check scripts only ever use a local PostgreSQL.
-// They take the first localhost URL from LOCAL_DATABASE_URL (shell, apps/server/.env.local or
-// root .env), then DATABASE_URL in root .env or apps/server/.env.local, then swap in their own disposable database name.
+// They take the first localhost URL from LOCAL_DATABASE_URL (shell or root .env; older
+// setups: apps/server/.env.local), then a localhost DATABASE_URL, and swap in their own database name.
 // A remote URL (your VPS) is never used, even when it is the root .env value.
 export async function localDatabaseBase() {
   const root = resolve(import.meta.dir, "..");

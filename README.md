@@ -31,7 +31,7 @@ bun run dev
 
 The account command prints a strong generated password once. Save it privately. Open [localhost:3001](http://localhost:3001/login) and sign in. `bun run dev` starts the web app, API, and worker together.
 
-Local ports: web **3001**, API **3100**, PostgreSQL **5438** on loopback. The API port avoids the other project already using port 3000 on this machine. Override `PORT` in `apps/server/.env.local` and the corresponding `SERVER_URL` in `apps/web/.env.local` if needed.
+Local ports: web **3001**, API **3100**, PostgreSQL **5438** on loopback. The API port avoids the other project already using port 3000 on this machine. Override `PORT` in the root `.env` and `SERVER_URL` in `apps/web/.env.schema` if needed.
 
 `setup` creates ignored local environment files with random secrets . It refuses to overwrite existing configuration. If setup reports existing files, use them or edit them deliberately; do not delete a database password while keeping the corresponding PostgreSQL volume.
 
@@ -41,7 +41,7 @@ Dashboard access is stored in PostgreSQL. Personal Gmail addresses are fine; bra
 
 For an existing installation, run migrations, then run `bun run team:migrate` once before removing the old `ALLOWED_EMAILS` variable. It migrates only matching existing users and never reactivates an explicitly disabled membership. Alternatively, pass `--emails comma-separated-addresses`. New installations need no allowlist.
 
-The root `.env` supplies root commands and Docker; app-specific `.env.local` files support running workspaces directly. Root/shell variables take precedence when inherited by child commands. Setup uses local PostgreSQL at port 5438; replace that URL for deployment. Keep database/key settings consistent when launching workspaces directly.
+There is one environment file, the root `.env`: local development, migrations, `team:add` and Coolify all read it (`apps/server/.env` is a link to it; the web app needs none). `DATABASE_URL` is the database everything uses, normally the VPS. Tests, the simulation and model checks only ever use `LOCAL_DATABASE_URL` (the local PostgreSQL on port 5438) and refuse remote databases. A shell `DATABASE_URL=...` still overrides the file for one command.
 
 ## First session
 
@@ -64,7 +64,7 @@ Captured-DOM and simulated Chrome API tests pass; the import preview was checked
 
 Merge is no longer used. Start with Groq GPT-OSS 20B, or select Gemini Flash-Lite. See [model research, usage calculations and rate-limit behavior](docs/ai.md).
 
-For Docker, set these in root `.env`; for local development, use `apps/server/.env.local`:
+Set these in the root `.env`:
 
 ```dotenv
 LLM_PROVIDER=groq

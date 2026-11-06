@@ -21,7 +21,7 @@ The web container proxies a fixed API upstream at runtime. Browser requests and 
 
 Install Docker Engine with Compose v2 on your VPS. A small VPS can run the pilot, but building Next.js needs more memory than serving it; allow roughly 2 GB or more for the build, or build the images elsewhere for the VPS architecture. This is an operating estimate, not a measured capacity guarantee.
 
-1. Clone/copy the repository to a private directory. Do not copy development `.env.local` files or use the development database as production.
+1. Clone/copy the repository to a private directory. Do not use the local test database (`LOCAL_DATABASE_URL`) as production.
 2. Copy `.env.example` to `.env` and restrict it to the deployment user (`chmod 600 .env`).
 3. Set `DATABASE_URL` to your existing PostgreSQL connection string and generate `BETTER_AUTH_SECRET` with `openssl rand -hex 32`. Use a dedicated application database/user with migration permissions, and URL-encode special characters in credentials. `POSTGRES_PASSWORD` is not required. Replace all placeholders.
 

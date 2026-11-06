@@ -15,7 +15,7 @@ Set it up once:
 1. Open https://console.cloud.google.com, create or pick a project, and attach a billing account (Google requires one even for the free usage).
 2. APIs & Services → Library → enable **Places API (New)**.
 3. APIs & Services → Credentials → Create credentials → API key. Restrict it to **Places API (New)**.
-4. Put it in the server environment as `GOOGLE_PLACES_API_KEY=` (root `.env` for Docker, `apps/server/.env.local` for local dev) and restart the API.
+4. Put it in the server environment as `GOOGLE_PLACES_API_KEY=` (root `.env`) and restart the API.
 5. Optional: set a budget alert in Google Cloud Billing.
 
 **OpenStreetMap** is the free fallback when no key is set. It needs no account, but in a 6 November 2026 check most Indian businesses had no phone or website tags (for example 39 hotels in Amritsar, 5 with a phone and 3 with a website), and businesses without any contact are skipped. It makes one request per search, within Nominatim's light-use policy.

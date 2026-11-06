@@ -25,7 +25,7 @@ User-facing explanation of the app: `docs/user-guide.md`. Verification history: 
 ## Rules that matter
 
 - Commit incrementally, one slice at a time, with conventional prefixes (`feat:`, `test:`, `docs:`). Commits are authored as ashwathsoni005@gmail.com through the repo git config; do not change it.
-- Root `.env` `DATABASE_URL` is the self-hosted VPS PostgreSQL. Never migrate or write to it without the owner's explicit go-ahead for that command.
-- Tests, `bun run simulate` and `bun run models:check` only use a localhost database (see `scripts/local-db.ts`), taken from `LOCAL_DATABASE_URL` (shell or env files) or a localhost `DATABASE_URL`. Start it with `bun run db:start`.
+- There is one env file: root `.env` (`apps/server/.env` links to it; the web app has committed defaults in `apps/web/.env.schema`). Its `DATABASE_URL` is the self-hosted VPS PostgreSQL, also used by `bun run dev`, `db:migrate` and `team:add`. Never migrate or write to it without the owner's explicit go-ahead for that command.
+- Tests, `bun run simulate` and `bun run models:check` only use a localhost database (see `scripts/local-db.ts`), taken from `LOCAL_DATABASE_URL` in root `.env` (or the shell). Start it with `bun run db:start`.
 - Checks before committing: `bun run check-types`, `bun run test`, `bun run test:integration`, `bun run simulate`.
 - Nothing may send email or messages as a side effect of approval. Real Gmail sending stays behind `EMAIL_SENDING_ENABLED`.

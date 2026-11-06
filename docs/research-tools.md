@@ -13,7 +13,7 @@ Usage is recorded in the `api_usage` table and shown under **Settings**. Free-ti
 
 ## Getting the keys
 
-Put each key on its own line in `apps/server/.env.local` (local development) and in root `.env` (VPS), then restart the server and worker. Never paste keys in chat or commit them.
+Put each key on its own line in the root `.env` (and in Coolify's environment variables), then restart the server and worker. Never paste keys in chat or commit them.
 
 ### PageSpeed Insights
 

@@ -36,7 +36,7 @@ Model output is cleaned before saving: long dashes, curly quotes and bracket pla
 
 ## Setup
 
-For Docker, edit root `.env`. For local development, edit `apps/server/.env.local`:
+Edit the root `.env` (the one file for local development, commands and Coolify):
 
 ```dotenv
 LLM_PROVIDER=groq
