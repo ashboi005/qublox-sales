@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { localDatabaseBase } from "./local-db";
 import { mkdirSync } from "node:fs";
 import assert from "node:assert/strict";
 import { createDb } from "../packages/db/src";
@@ -12,14 +13,7 @@ import type { Campaign, Prospect } from "../packages/shared/src";
 
 // Local, disposable simulation only. Never reads the production DATABASE_URL.
 const root = resolve(import.meta.dir, "..");
-const local = await Bun.file(resolve(root, ".env")).text();
-// The local dev container password; .env may now point DATABASE_URL at a remote server.
-const password = local.match(/^POSTGRES_PASSWORD=(.+)$/m)?.[1] || process.env.POSTGRES_PASSWORD;
-if (!password)
-  throw new Error(
-    "Simulation requires local compose.dev.yml PostgreSQL and its POSTGRES_PASSWORD. It never targets your VPS database.",
-  );
-const base = `postgresql://postgres:${password}@localhost:5438/`;
+const base = await localDatabaseBase();
 const database = "qublox_sales_simulation";
 const admin = createDb({ DATABASE_URL: `${base}postgres` });
 try {

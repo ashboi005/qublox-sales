@@ -1,12 +1,9 @@
 import { resolve } from "node:path";
+import { localDatabaseBase } from "./local-db";
 import { createDb } from "../packages/db/src";
 
 const root = resolve(import.meta.dir, "..");
-const config = await Bun.file(resolve(root, ".env")).text();
-// The local dev container password; .env may now point DATABASE_URL at a remote server.
-const password = config.match(/^POSTGRES_PASSWORD=(.+)$/m)?.[1] || process.env.POSTGRES_PASSWORD;
-if (!password) throw new Error("Run bun run setup and bun run db:start first.");
-const base = `postgresql://postgres:${password}@localhost:5438/`;
+const base = await localDatabaseBase();
 const admin = createDb({ DATABASE_URL: `${base}postgres` });
 try {
   const result = await admin.$client.query(
