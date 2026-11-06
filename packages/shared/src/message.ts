@@ -23,6 +23,7 @@ export function unsupportedPlaceholders(text: string) {
 // Deterministic cleanup for model output. The prompt asks for the same; this enforces it.
 export function cleanDraftText(text: string) {
   return text
+    .replace(/[‐‑]/g, "-")
     .replace(/(\d)\s*[–—]\s*(\d)/g, "$1-$2")
     .replace(/\s*[–—]\s*/g, ", ")
     .replace(/\s+-{1,2}\s+/g, ", ")
