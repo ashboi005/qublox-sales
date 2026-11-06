@@ -20,5 +20,5 @@ Checkpoints:
 - [x] Lead tracker: meeting status and table columns.
 - [x] WhatsApp channel and businesses without websites.
 - [x] Automatic research → draft pipeline.
-- [ ] Scraper improvements (Cloudflare-protected emails, JSON-LD, obfuscated addresses, common contact paths, WhatsApp links) with a real-site hit-rate check.
+- [x] Scraper improvements (Cloudflare-protected emails, JSON-LD, obfuscated addresses, common contact paths, WhatsApp links) with a real-site hit-rate check.
 - [ ] Verification record, simulation, commit.

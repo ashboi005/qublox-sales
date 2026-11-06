@@ -6,8 +6,85 @@ import { fetchPublicResource, type Resource } from "./safe-fetch";
 const unique = (items: string[]) => [...new Set(items)].slice(0, 20);
 const text = (value: string) => value.replace(/\s+/g, " ").trim();
 
+const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)*\.[A-Z]{2,24}/gi;
+const freeMail = /@(gmail|yahoo|hotmail|outlook|rediffmail|icloud|live|aol|zoho|proton)\./;
+// Theme placeholders, asset names and tracking addresses are not business contacts.
+function realEmail(email: string) {
+  return (
+    z.email().safeParse(email).success &&
+    !/\.(png|jpe?g|gif|webp|svg|avif|css|js)$/.test(email) &&
+    !/@(example\.(com|org|net)|domain\.com|email\.com|yourdomain\.com|sentry[\w.-]*|wixpress\.com|[\w.-]*\.sentry\.io)$/.test(
+      email,
+    ) &&
+    !/^(you|your|yourname|name|email|user|username|example|test|john|jane|someone|info|support|contact|hello|admin|mail)@(gmail|yahoo|hotmail|outlook)\.com$/.test(
+      email,
+    )
+  );
+}
+// Cloudflare "email protection" hex: first byte is the XOR key.
+export function decodeCfEmail(hex: string) {
+  if (!/^[0-9a-f]{4,}$/i.test(hex) || hex.length % 2) return "";
+  const key = parseInt(hex.slice(0, 2), 16);
+  let out = "";
+  for (let i = 2; i < hex.length; i += 2)
+    out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ key);
+  return out;
+}
+// "name [at] shop [dot] com" and "name(at)shop.com".
+function deobfuscate(text: string) {
+  return text.replace(/\s*[[(]\s*at\s*[\])]\s*/gi, "@").replace(/\s*[[(]\s*dot\s*[\])]\s*/gi, ".");
+}
+function cleanPhone(value: string) {
+  // tel: links sometimes join two numbers; keep the first plausible one.
+  for (const part of value.split(/[\/,;|]| or /i)) {
+    const phone = part.replace(/[^+\d() -]/g, "").trim();
+    const digits = phone.replace(/\D/g, "").length;
+    if (digits >= 7 && digits <= 13) return phone.slice(0, 100);
+  }
+  return "";
+}
+function jsonLdContacts(raw: string) {
+  const emails: string[] = [],
+    phones: string[] = [];
+  const visit = (node: unknown, depth: number) => {
+    if (!node || typeof node !== "object" || depth > 6) return;
+    if (Array.isArray(node)) return node.slice(0, 50).forEach((n) => visit(n, depth + 1));
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "email" && typeof value === "string")
+        emails.push(
+          value
+            .replace(/^mailto:/i, "")
+            .trim()
+            .toLowerCase(),
+        );
+      else if (key === "telephone" && typeof value === "string") phones.push(cleanPhone(value));
+      else visit(value, depth + 1);
+    }
+  };
+  try {
+    visit(JSON.parse(raw), 0);
+  } catch {
+    /* malformed structured data */
+  }
+  return { emails, phones };
+}
+
+// Business-domain addresses first, then free-mail addresses; junk removed.
+function rankEmails(emails: string[], url: string) {
+  const host = new URL(url).hostname.replace(/^www\./, "");
+  const real = [...new Set(emails.map((e) => e.trim().replace(/\.$/, "")).filter(realEmail))];
+  const score = (e: string) =>
+    (e.endsWith(`@${host}`) ? 0 : freeMail.test(e) ? 1 : 2) +
+    (/^(hr|careers?|jobs?|recruit\w*|privacy|legal|abuse|no-?reply|webmaster)@/.test(e) ? 3 : 0);
+  return real.sort((a, b) => score(a) - score(b)).slice(0, 20);
+}
+
 export function extractPage(html: string, url: string, retrievedAt = new Date().toISOString()) {
-  const $ = load(html);
+  // A space between tags keeps adjacent text ("info@x.in" + "Phone") from merging.
+  const $ = load(html.replace(/>\s*</g, "> <"));
+  const structured = $('script[type="application/ld+json"]')
+    .map((_, el) => jsonLdContacts($(el).text().slice(0, 100_000)))
+    .get();
   const platform =
     /cdn\.shopify\.com/i.test(html) && /Shopify/i.test(html)
       ? "Shopify"
@@ -40,13 +117,19 @@ export function extractPage(html: string, url: string, retrievedAt = new Date().
         /* malformed link */
       }
     }
-    if (/^tel:/i.test(href))
-      phones.push(
-        href
-          .slice(4)
-          .replace(/[^+\d() -]/g, "")
-          .slice(0, 100),
-      );
+    if (/^tel:/i.test(href)) {
+      try {
+        phones.push(cleanPhone(decodeURIComponent(href.slice(4))));
+      } catch {
+        /* malformed link */
+      }
+    }
+    const cf = href.match(/\/cdn-cgi\/l\/email-protection#([0-9a-f]+)/i);
+    if (cf) emails.push(decodeCfEmail(cf[1]!).toLowerCase());
+    const wa = href.match(
+      /^https?:\/\/(?:wa\.me\/|(?:api|web)\.whatsapp\.com\/send\/?\?(?:[^#]*&)?phone=)\+?(\d{8,15})/i,
+    );
+    if (wa) phones.push(`+${wa[1]}`);
     try {
       const target = new URL(href, url);
       if (!["http:", "https:"].includes(target.protocol) || target.username || target.password)
@@ -65,12 +148,15 @@ export function extractPage(html: string, url: string, retrievedAt = new Date().
       /* ignore unsupported links */
     }
   });
+  $("[data-cfemail]").each((_, el) => {
+    emails.push(decodeCfEmail($(el).attr("data-cfemail") || "").toLowerCase());
+  });
+  for (const found of structured) {
+    emails.push(...found.emails);
+    phones.push(...found.phones);
+  }
   const body = text($("body").text());
-  emails.push(
-    ...(body.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map((value) =>
-      value.toLowerCase(),
-    ),
-  );
+  emails.push(...(deobfuscate(body).match(emailPattern) || []).map((value) => value.toLowerCase()));
   const paragraphs = $("h1, h2, h3, p, li")
     .map((_, element) => text($(element).text()))
     .get()
@@ -101,7 +187,7 @@ export function extractPage(html: string, url: string, retrievedAt = new Date().
     title,
     summary: description || excerpt.slice(0, 500),
     platform,
-    emails: unique(emails.filter((value) => z.email().safeParse(value).success)),
+    emails: rankEmails(emails, url),
     phones: unique(phones.filter(Boolean)),
     socials: unique(socials),
     links: unique(links),
@@ -200,25 +286,47 @@ export async function researchWebsite(
   const pages = [first],
     warnings: string[] = [];
   // Only follow the same origin. A cross-origin landing redirect is researched, never crawled onward.
-  for (const link of first.links.slice(0, 3)) {
+  // Contact pages first. Without an email or a contact link, try the usual contact paths.
+  const rank = (link: string) =>
+    /contact/i.test(new URL(link).pathname) ? 0 : /about/i.test(new URL(link).pathname) ? 1 : 2;
+  const linked = [...first.links].sort((a, b) => rank(a) - rank(b));
+  const guesses =
+    first.emails.length || linked.some((l) => rank(l) === 0)
+      ? []
+      : ["/contact", "/contact-us", "/pages/contact"].map((path) =>
+          new URL(path, response.url).toString(),
+        );
+  const visited = new Set([new URL(response.url).toString()]);
+  const candidates = [...linked.slice(0, 3), ...guesses].filter((link) => {
+    const fresh = !visited.has(link);
+    visited.add(link);
+    return fresh;
+  });
+  for (const link of candidates) {
+    if (pages.length >= 4) break;
+    const guessed = guesses.includes(link);
     if (
-      new URL(link).origin !== new URL(home).origin ||
+      new URL(link).origin !== new URL(response.url).origin ||
       !robotsAllows(robots.body, new URL(link).pathname)
     )
       continue;
     try {
       const page = await fetcher(link);
-      if (page.status === 200 && new URL(page.url).origin === new URL(response.url).origin)
+      if (page.status === 200 && new URL(page.url).origin === new URL(response.url).origin) {
         pages.push(extractPage(page.body, page.url));
-      else warnings.push(`A linked page could not be read (HTTP ${page.status}).`);
+        if (guessed) break;
+      } else if (!guessed) warnings.push(`A linked page could not be read (HTTP ${page.status}).`);
     } catch {
-      warnings.push("A linked page could not be researched.");
+      if (!guessed) warnings.push("A linked page could not be researched.");
     }
   }
   return {
     summary: first.summary.slice(0, 4000),
     platform: pages.find((page) => page.platform !== "Unknown")?.platform || "Unknown",
-    emails: unique(pages.flatMap((page) => page.emails)),
+    emails: rankEmails(
+      pages.flatMap((page) => page.emails),
+      response.url,
+    ),
     phones: unique(pages.flatMap((page) => page.phones)),
     socials: unique(pages.flatMap((page) => page.socials)),
     evidence: pages.flatMap((page) => page.evidence).slice(0, 20),

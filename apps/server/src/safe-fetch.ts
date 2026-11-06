@@ -101,12 +101,20 @@ export async function fetchPublicResource(
           }
           let size = 0;
           const chunks: Buffer[] = [];
+          // Modern store themes often exceed 1 MB. Keep the first 3 MB rather than failing.
+          let done = false;
           res.on("data", (chunk: Buffer) => {
+            if (done) return;
             size += chunk.length;
-            if (size > 512_000) {
+            chunks.push(chunk);
+            if (size > 3_000_000) {
+              done = true;
               res.destroy();
-              reject(new Error("This page exceeds the research size limit."));
-            } else chunks.push(chunk);
+              resolve({
+                status,
+                body: Buffer.concat(chunks).subarray(0, 3_000_000).toString("utf8"),
+              });
+            }
           });
           res.on("end", () => resolve({ status, body: Buffer.concat(chunks).toString("utf8") }));
           res.on("error", reject);

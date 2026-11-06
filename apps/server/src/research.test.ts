@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { resolvePublicTarget, isPublicAddress } from "./safe-fetch";
-import { extractPage, robotsAllows } from "./research";
+import { decodeCfEmail, extractPage, robotsAllows } from "./research";
 
 describe("public network boundary", () => {
   test("rejects private, loopback, reserved and mapped private addresses", () => {
@@ -73,4 +73,42 @@ test("robots wildcards and end anchors are bounded even for hostile patterns", (
   expect(robotsAllows("User-agent: *\nDisallow: /private$", "/private/more")).toBe(true);
   expect(robotsAllows("User-agent: *\nDisallow: /private*", "/private/more")).toBe(false);
   expect(robotsAllows("User-agent: *\n" + "Disallow: /x\n".repeat(501), "/")).toBe(false);
+});
+
+test("finds protected, structured, obfuscated and WhatsApp contacts without merging words", () => {
+  const page = extractPage(
+    `<html><head><title>Cafe</title><script type="application/ld+json">{"@type":"Restaurant","email":"orders@cafe.example","telephone":"+91 98765 43210"}</script></head><body>
+    <p>Contact us</p><p>info@cafe.example</p><p>Phone 8085512110</p>
+    <a href="/cdn-cgi/l/email-protection#5c332b32392e1c3f3d3a39712f34332c723532">[email&#160;protected]</a>
+    <span class="__cf_email__" data-cfemail="5c332b32392e1c3f3d3a39712f34332c723532"></span>
+    <p>Write to bookings [at] cafe [dot] example for parties.</p>
+    <a href="https://wa.me/919876500000?text=hi">WhatsApp</a>
+    <a href="tel:+91 20 99620040 / 209050">Call</a>
+    <p>Theme demo: you@gmail.com and logo@2x.png and support@gmail.com</p>
+    </body></html>`,
+    "https://cafe.example/",
+  );
+  expect([...page.emails].sort()).toEqual([
+    "bookings@cafe.example",
+    "info@cafe.example",
+    "orders@cafe.example",
+    "owner@cafe-shop.in",
+  ]);
+  expect(page.emails.at(-1)).toBe("owner@cafe-shop.in");
+  expect(page.emails.some((e) => /phone|^us|gmail|png/.test(e))).toBe(false);
+  expect(page.phones).toContain("+919876500000");
+  expect(page.phones).toContain("+91 98765 43210");
+  expect(page.phones).toContain("+91 20 99620040");
+});
+
+test("decodes Cloudflare email protection", () => {
+  expect(decodeCfEmail("5c332b32392e1c3f3d3a39712f34332c723532")).toBe("owner@cafe-shop.in");
+});
+
+test("hiring and no-reply inboxes rank after the business inbox", () => {
+  const page = extractPage(
+    `<body><p>careers@shop.example</p><p>noreply@shop.example</p><p>sales@shop.example</p></body>`,
+    "https://shop.example/",
+  );
+  expect(page.emails[0]).toBe("sales@shop.example");
 });

@@ -56,6 +56,7 @@
     "test:integration": "bun scripts/test-integration.ts",
     "simulate": "bun scripts/simulate-workflow.ts",
     "models:check": "bun scripts/check-models.ts",
+    "research:sample": "bun scripts/research-sample.ts docs/research/scraper-sample-sites.json",
     "team:remove": "cd apps/server && bun run team:remove",
     "team:role": "cd apps/server && bun run team:role",
     "team:migrate": "cd apps/server && bun run team:migrate"
