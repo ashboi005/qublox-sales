@@ -18,12 +18,8 @@ const schema = z
         z.enum(["true", "false"]).default("false"),
       )
       .transform((v) => v === "true"),
-    GMAIL_ACCOUNTS_JSON: z.string().max(30000).default("[]"),
-    GMAIL_SENDER_NAME: z
-      .string()
-      .max(80)
-      .regex(/^[^\r\n]*$/)
-      .default("Qublox"),
+    // Also the key source for encrypting stored Gmail App Passwords.
+    BETTER_AUTH_SECRET: z.string().default(""),
     COMPANY_NAME: z
       .string()
       .trim()

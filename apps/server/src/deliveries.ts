@@ -7,8 +7,10 @@ import type { SalesConfig } from "./config";
 import { AppError, conflict } from "./errors";
 import { assertNotSuppressed, lockProspect, logActivity, newId, type ProspectRow } from "./sales";
 import { contactCapacity } from "./contact-cap";
-import { mailboxes, scheduleTimes, smtpOutcome } from "./mail-config";
+import { scheduleTimes, smtpOutcome } from "./mail-config";
 import { gmailSender, type SendEmail } from "./gmail";
+import { createMailboxService, type Viewer } from "./mailboxes";
+import { renderMessage } from "@qublox-sales/shared";
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Row = typeof emailOutbox.$inferSelect;
@@ -76,27 +78,18 @@ async function finish(
 export function createDeliveryService(
   db: Database,
   config: SalesConfig,
-  send: SendEmail = gmailSender(config.GMAIL_SENDER_NAME),
+  send: SendEmail = gmailSender(config.COMPANY_NAME),
   dispatchTime: () => number = Date.now,
 ) {
-  const accounts = mailboxes(config);
-  const validatePool = (ids: string[]) => {
-    if (!config.EMAIL_SENDING_ENABLED || !accounts.length)
+  const senders = createMailboxService(db, config);
+  const validatePool = async (ids: string[], viewer: Viewer) => {
+    if (!config.EMAIL_SENDING_ENABLED)
       throw new AppError(
         422,
         "EMAIL_DISABLED",
-        "Gmail sending is disabled. Configure Gmail accounts on the server first.",
+        "Gmail sending is disabled on the server. Set EMAIL_SENDING_ENABLED=true when ready.",
       );
-    if (
-      !ids.length ||
-      new Set(ids).size !== ids.length ||
-      ids.some((id) => !accounts.some((a) => a.id === id))
-    )
-      throw new AppError(
-        422,
-        "SENDER_POOL",
-        "Choose configured Gmail accounts for the sender pool.",
-      );
+    await senders.assertUsable(viewer, ids);
   };
   return {
     async list() {
@@ -108,8 +101,9 @@ export function createDeliveryService(
         .limit(100);
       return rows.map((r) => ({ ...r.delivery, prospectName: r.name, currentVersion: r.version }));
     },
-    async queue(input: QueueEmailInput, actor: string) {
-      validatePool(input.senderIds);
+    async queue(input: QueueEmailInput, viewer: Viewer) {
+      const actor = viewer.name;
+      await validatePool(input.senderIds, viewer);
       if (new Set(input.prospects.map((p) => p.id)).size !== input.prospects.length)
         throw new AppError(422, "DUPLICATE_SELECTION", "Select each prospect once.");
       return db.transaction(async (tx) => {
@@ -180,9 +174,11 @@ export function createDeliveryService(
       version: number,
       deliveryId: string,
       action: "cancel" | "now",
-      actor: string,
+      viewer: Viewer,
       senderIds?: string[],
     ) {
+      const actor = viewer.name;
+      if (action === "now" && senderIds) await validatePool(senderIds, viewer);
       return db.transaction(async (tx) => {
         const p = await lockProspect(tx, id, version);
         const [row] = await tx
@@ -195,7 +191,8 @@ export function createDeliveryService(
         if (action === "now") {
           assertApproved(p);
           if (!sameSnapshot(row, p)) conflict();
-          validatePool(senderIds || row.senderPool);
+          if (!senderIds && !config.EMAIL_SENDING_ENABLED)
+            throw new AppError(422, "EMAIL_DISABLED", "Gmail sending is disabled on the server.");
           await tx
             .update(emailOutbox)
             .set({ scheduledAt: await clock(tx), senderPool: senderIds || row.senderPool })
@@ -270,7 +267,7 @@ export function createDeliveryService(
               lte(emailOutbox.startedAt, new Date(now.getTime() - 120000)),
             ),
           );
-        if (!config.EMAIL_SENDING_ENABLED || !accounts.length) return null;
+        if (!config.EMAIL_SENDING_ENABLED) return null;
         const [row] = await tx
           .select()
           .from(emailOutbox)
@@ -299,13 +296,14 @@ export function createDeliveryService(
             .where(eq(emailOutbox.id, row.id));
           return null;
         }
-        const pool = accounts.filter((a) => row.senderPool.includes(a.id));
+        const pool = await senders.load(row.senderPool);
         if (!pool.length) {
           await tx
             .update(emailOutbox)
             .set({
               status: "failed",
-              lastError: "No selected Gmail sender is currently configured.",
+              lastError:
+                "None of the selected Gmail senders is connected now. Reconnect one in Settings, then queue again.",
             })
             .where(eq(emailOutbox.id, row.id));
           return null;
@@ -363,7 +361,16 @@ export function createDeliveryService(
       }
       let result: { messageId: string };
       try {
-        result = await send(claimed.account, claimed.row, deadlineAt);
+        // The stored snapshot keeps {{sender}}; the recipient sees this sender's name.
+        result = await send(
+          claimed.account,
+          {
+            ...claimed.row,
+            subject: renderMessage(claimed.row.subject, claimed.account.displayName),
+            body: renderMessage(claimed.row.body, claimed.account.displayName),
+          },
+          deadlineAt,
+        );
       } catch (error) {
         const status = smtpOutcome(error);
         await db

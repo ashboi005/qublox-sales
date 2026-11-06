@@ -9,6 +9,7 @@ import {
   provisionTeamAccount,
   disableTeamAccount,
   migrateLegacyTeam,
+  setTeamRole,
 } from "@qublox-sales/auth/provision";
 import { createApp } from "../src/app";
 import type { Campaign, Prospect } from "@qublox-sales/shared";
@@ -26,14 +27,25 @@ const origin = "http://localhost:3001";
 const config = salesConfig({
   LLM_MONTHLY_BUDGET_USD: 5,
   DAILY_CONTACT_LIMIT: 1,
+  BETTER_AUTH_SECRET: "integration-test-only-secret-at-least-thirty-two-characters",
 });
+const checkedLogins: string[] = [];
 const authConfig = {
   BETTER_AUTH_URL: origin,
   BETTER_AUTH_SECRET: "integration-test-only-secret-at-least-thirty-two-characters",
   CORS_ORIGIN: origin,
 };
 const auth = createAuth(authConfig, db);
-const app = createApp({ db, auth, origin, config });
+const app = createApp({
+  db,
+  auth,
+  origin,
+  config,
+  verifyMailbox: async (m) => {
+    checkedLogins.push(m.email);
+    if (m.appPassword === "wrongwrongwrong1") throw new Error("Gmail rejected this App Password.");
+  },
+});
 let cookie = "";
 async function request<T = Prospect>(
   path: string,
@@ -812,4 +824,37 @@ test("definitive provider rejection releases cost but retains request allowance"
   const [row] = await db.select().from(llmUsage);
   expect(row).toMatchObject({ state: "rejected", costMicros: 0 });
   expect(row!.quotaTokens).toBeGreaterThan(0);
+});
+
+test("teammates connect their own Gmail; the App Password is checked, encrypted and never returned", async () => {
+  const bad = await request<{ error: { code: string; message: string } }>(
+    "/api/mailboxes/me",
+    "PUT",
+    { email: "Tester@gmail.com", displayName: "Tess", appPassword: "wrongwrongwrong1" },
+  );
+  expect(bad.response.status).toBe(422);
+  expect(bad.data.error.code).toBe("GMAIL_LOGIN");
+  const ok = await request<{ id: string; email: string; mine: boolean }[]>(
+    "/api/mailboxes/me",
+    "PUT",
+    { email: "Tester@gmail.com", displayName: "Tess", appPassword: "abcd efgh ijkl mnop" },
+  );
+  expect(ok.response.status).toBe(200);
+  expect(ok.data).toMatchObject([{ email: "tester@gmail.com", mine: true, displayName: "Tess" }]);
+  expect(JSON.stringify(ok.data)).not.toContain("abcdefghijklmnop");
+  expect(checkedLogins).toEqual(["tester@gmail.com", "tester@gmail.com"]);
+  const stored = await db.$client.query("select secret from mailbox where email=$1", [
+    "tester@gmail.com",
+  ]);
+  expect(stored.rows[0].secret).toStartWith("v1.");
+  expect(stored.rows[0].secret).not.toContain("abcdefghijklmnop");
+  const settings = await request<{ role: string; mailboxes: unknown[] }>("/api/settings");
+  expect(settings.data.role).toBe("member");
+  expect(JSON.stringify(settings.data)).not.toContain("abcdefghijklmnop");
+  const removed = await request<unknown[]>(`/api/mailboxes/${ok.data[0]!.id}`, "DELETE");
+  expect(removed.data).toEqual([]);
+  await setTeamRole(db, "test@qublox.local", "admin");
+  expect((await request<{ role: string }>("/api/settings")).data.role).toBe("admin");
+  await setTeamRole(db, "test@qublox.local", "member");
+  expect((await request<{ role: string }>("/api/settings")).data.role).toBe("member");
 });

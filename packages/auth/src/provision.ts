@@ -10,7 +10,13 @@ import { createAuth, type AuthConfig } from "./index";
 export async function provisionTeamAccount(
   env: AuthConfig,
   db: Database,
-  input: { email: string; name: string; password: string; reset?: boolean },
+  input: {
+    email: string;
+    name: string;
+    password: string;
+    reset?: boolean;
+    role?: "admin" | "member";
+  },
 ) {
   const email = z.email().parse(input.email.trim().toLowerCase());
   if (input.password.length < 12 || input.password.length > 128)
@@ -56,7 +62,24 @@ export async function provisionTeamAccount(
     throw new Error(
       "Account creation could not be confirmed. Check whether the account already exists.",
     );
-  await db.insert(teamMember).values({ userId: stored.userId, active: true }).onConflictDoNothing();
+  await db
+    .insert(teamMember)
+    .values({ userId: stored.userId, active: true, role: input.role || "member" })
+    .onConflictDoNothing();
+}
+
+export async function setTeamRole(db: Database, email: string, role: "admin" | "member") {
+  const [member] = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(user.email, email.trim().toLowerCase()));
+  if (!member) throw new Error("No account exists for this email.");
+  const changed = await db
+    .update(teamMember)
+    .set({ role })
+    .where(eq(teamMember.userId, member.id))
+    .returning({ userId: teamMember.userId });
+  if (!changed.length) throw new Error("This account has no team membership. Use team:add first.");
 }
 
 export async function disableTeamAccount(db: Database, email: string) {

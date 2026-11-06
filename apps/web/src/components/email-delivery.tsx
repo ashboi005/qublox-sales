@@ -93,7 +93,14 @@ export function EmailQueueForm({
       )}
       {!settings.emailSendingEnabled && (
         <Notice>
-          Gmail sending is disabled. Configure it on the server; manual sending remains available.
+          {!settings.sendingSwitch ? (
+            "Gmail sending is switched off on the server. Manual sending remains available."
+          ) : (
+            <>
+              Connect your Gmail in <Link href="/settings">Settings</Link> to send from here. Manual
+              sending remains available.
+            </>
+          )}
         </Notice>
       )}
       <fieldset className="form-stack" disabled={busy || disabled || !settings.emailSendingEnabled}>
@@ -110,7 +117,7 @@ export function EmailQueueForm({
                   )
                 }
               />
-              {m.email}
+              {senderLabel(m)}
             </label>
           ))}
           <p className="hint">
@@ -249,7 +256,7 @@ export function ProspectDelivery({
                   <option value="">Keep queued sender pool</option>
                   {settings.mailboxes.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.email}
+                      {senderLabel(m)}
                     </option>
                   ))}
                 </select>
@@ -382,4 +389,8 @@ export function BulkEmailQueue({
       )}
     </details>
   );
+}
+
+function senderLabel(m: { displayName: string; email: string; mine: boolean }) {
+  return `${m.displayName} · ${m.email}${m.mine ? " (you)" : ""}`;
 }

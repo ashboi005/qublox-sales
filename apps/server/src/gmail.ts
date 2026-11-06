@@ -43,7 +43,35 @@ export async function withSmtpDeadline<T>(
     if (timer) clearTimeout(timer);
   }
 }
-export function gmailSender(name: string): SendEmail {
+export type VerifyMailbox = (mailbox: Omit<Mailbox, "id">) => Promise<void>;
+// Logs in to Gmail SMTP and disconnects. It never sends a message.
+export const verifyGmailLogin: VerifyMailbox = async (mailbox) => {
+  const transport = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: { user: mailbox.email, pass: mailbox.appPassword },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+  });
+  try {
+    await transport.verify();
+  } catch (error) {
+    const code = (error as { code?: string; responseCode?: number }).code;
+    throw new Error(
+      code === "EAUTH"
+        ? "Gmail rejected this address and App Password. Check both, and that 2-Step Verification is on."
+        : "Could not reach Gmail to check the login. Try again shortly.",
+    );
+  } finally {
+    transport.close();
+  }
+};
+export function senderName(mailbox: Pick<Mailbox, "displayName">, company: string) {
+  return `${mailbox.displayName} from ${company}`;
+}
+export function gmailSender(company: string): SendEmail {
   return async (mailbox, message, deadlineAt) => {
     const transport = nodemailer.createTransport({
       host: "smtp.gmail.com",
@@ -102,7 +130,7 @@ export function gmailSender(name: string): SendEmail {
       return await withSmtpDeadline(async (own) => {
         ownSocket = own;
         const info = await transport.sendMail({
-          from: { name, address: mailbox.email },
+          from: { name: senderName(mailbox, company), address: mailbox.email },
           to: { address: message.toAddress, name: "" },
           subject: message.subject,
           text: message.body,

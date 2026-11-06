@@ -4,7 +4,7 @@ import * as schema from "@qublox-sales/db/schema/auth";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { isTeamMember } from "./access";
-export { isTeamMember } from "./access";
+export { isTeamMember, teamMembership } from "./access";
 
 export type AuthConfig = {
   BETTER_AUTH_URL: string;

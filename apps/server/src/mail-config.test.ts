@@ -1,28 +1,24 @@
 import { expect, test } from "bun:test";
 import { PassThrough } from "node:stream";
 import { withSmtpDeadline } from "./gmail";
-import { salesConfig } from "./config";
-import { mailboxes, scheduleTimes, smtpOutcome } from "./mail-config";
-test("Gmail config rejects duplicate identities, ordinary passwords and non-Gmail hosts", () => {
-  const c = (input: unknown) => salesConfig({ GMAIL_ACCOUNTS_JSON: JSON.stringify(input) });
-  expect(
-    mailboxes(c([{ id: "one", email: "Owner@gmail.com", appPassword: "abcd efgh ijkl mnop" }]))[0]!
-      .email,
-  ).toBe("owner@gmail.com");
-  expect(() =>
-    mailboxes(c([{ id: "one", email: "owner@example.com", appPassword: "abcdefghijklmnop" }])),
-  ).toThrow();
-  expect(() =>
-    mailboxes(c([{ id: "one", email: "owner@gmail.com", appPassword: "mypassword" }])),
-  ).toThrow();
-  expect(() =>
-    mailboxes(
-      c([
-        { id: "one", email: "owner@gmail.com", appPassword: "abcdefghijklmnop" },
-        { id: "two", email: "OWNER@gmail.com", appPassword: "abcdefghijklmnop" },
-      ]),
-    ),
-  ).toThrow();
+import { mailboxInput, scheduleTimes, smtpOutcome } from "./mail-config";
+test("mailbox input accepts Gmail App Passwords and rejects ordinary passwords or other hosts", () => {
+  const ok = mailboxInput.parse({
+    email: "Owner@gmail.com",
+    displayName: "Mania",
+    appPassword: "abcd efgh ijkl mnop",
+  });
+  expect(ok).toEqual({
+    email: "owner@gmail.com",
+    displayName: "Mania",
+    appPassword: "abcdefghijklmnop",
+  });
+  const bad = (patch: Record<string, string>) =>
+    mailboxInput.safeParse({ ...ok, ...patch }).success;
+  expect(bad({ email: "owner@example.com" })).toBe(false);
+  expect(bad({ appPassword: "mypassword" })).toBe(false);
+  expect(bad({ displayName: "{{sender}}" })).toBe(false);
+  expect(bad({ displayName: "Mania\r\nBcc: x" })).toBe(false);
 });
 test("spread scheduling stays ordered inside the chosen window", () => {
   const a = new Date("2026-11-06T10:00:00Z"),

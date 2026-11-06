@@ -1,7 +1,7 @@
 import { createDeliveryService } from "./deliveries";
 import { Elysia } from "elysia";
 import { z, ZodError } from "zod";
-import { isTeamMember, type createAuth } from "@qublox-sales/auth";
+import { teamMembership, type createAuth } from "@qublox-sales/auth";
 import type { Database } from "@qublox-sales/db";
 import {
   campaignInput,
@@ -15,16 +15,21 @@ import {
 import type { SalesConfig } from "./config";
 import { AppError } from "./errors";
 import { createSalesService } from "./sales";
+import { createMailboxService, type Viewer } from "./mailboxes";
+import { mailboxInput } from "./mail-config";
+import type { VerifyMailbox } from "./gmail";
 
 export function createApp(options: {
   db: Database;
   auth: ReturnType<typeof createAuth>;
   origin: string;
   config: SalesConfig;
+  verifyMailbox?: VerifyMailbox;
 }) {
   const { db, auth, origin, config } = options;
   const sales = createSalesService(db, config);
   const delivery = createDeliveryService(db, config);
+  const senders = createMailboxService(db, config, options.verifyMailbox);
   const id = (value: string) => z.uuid().parse(value);
   return new Elysia({ serve: { maxRequestBodySize: 1024 * 1024 } })
     .onError(({ error, set, code }) => {
@@ -84,14 +89,21 @@ export function createApp(options: {
           const session = await auth.api.getSession({ headers: request.headers });
           if (!session)
             throw new AppError(401, "UNAUTHENTICATED", "Sign in to access your workspace.");
-          if (!(await isTeamMember(db, session.user.id)))
+          const membership = await teamMembership(db, session.user.id);
+          if (!membership)
             throw new AppError(403, "FORBIDDEN", "Your workspace membership is inactive.");
           if (
             !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
             request.headers.get("origin") !== origin
           )
             throw new AppError(403, "ORIGIN", "This request must come from your workspace.");
-          return { actor: session.user.name || session.user.email };
+          const actor = session.user.name || session.user.email;
+          const viewer: Viewer = {
+            userId: session.user.id,
+            name: actor,
+            admin: membership.role === "admin",
+          };
+          return { actor, viewer };
         })
         .get("/campaigns", () => sales.campaigns())
         .post("/campaigns", ({ body, set }) => {
@@ -169,10 +181,10 @@ export function createApp(options: {
           return sales.importRecords(input.records, input.campaignId, actor);
         })
         .get("/deliveries", () => delivery.list())
-        .post("/deliveries", ({ body, actor }) =>
-          delivery.queue(queueEmailInput.parse(body), actor),
+        .post("/deliveries", ({ body, viewer }) =>
+          delivery.queue(queueEmailInput.parse(body), viewer),
         )
-        .post("/prospects/:id/delivery/change", ({ params, body, actor }) => {
+        .post("/prospects/:id/delivery/change", ({ params, body, viewer }) => {
           const input = revisionSchema
             .extend({
               deliveryId: z.uuid(),
@@ -185,7 +197,7 @@ export function createApp(options: {
             input.version,
             input.deliveryId,
             input.action,
-            actor,
+            viewer,
             input.senderIds,
           );
         })
@@ -202,6 +214,11 @@ export function createApp(options: {
           );
         })
         .get("/overview", () => sales.overview())
-        .get("/settings", () => sales.settings()),
+        .get("/settings", ({ viewer }) => sales.settings(viewer))
+        .get("/mailboxes", ({ viewer }) => senders.list(viewer))
+        .put("/mailboxes/me", ({ body, viewer }) =>
+          senders.connect(viewer, mailboxInput.parse(body)),
+        )
+        .delete("/mailboxes/:id", ({ params, viewer }) => senders.remove(viewer, id(params.id))),
     );
 }

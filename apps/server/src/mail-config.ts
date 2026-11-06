@@ -1,37 +1,29 @@
 import { z } from "zod";
-import type { SalesConfig } from "./config";
 
-const mailboxSchema = z.object({
-  id: z.string().regex(/^[a-z0-9_-]{1,40}$/),
+// What a teammate submits from Settings. Only Gmail addresses with App Passwords.
+export const mailboxInput = z.object({
   email: z
     .email()
     .transform((s) => s.trim().toLowerCase())
-    .refine((s) => /@(?:gmail|googlemail)\.com$/.test(s)),
+    .refine((s) => /@(?:gmail|googlemail)\.com$/.test(s), "Use a Gmail address."),
+  displayName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(60)
+    .regex(/^[^\r\n{}\[\]<>"]*$/, "Use a plain name without brackets or quotes."),
   appPassword: z
     .string()
     .transform((s) => s.replace(/\s/g, ""))
-    .pipe(z.string().regex(/^[a-zA-Z0-9]{16}$/)),
+    .pipe(
+      z
+        .string()
+        .regex(/^[a-zA-Z0-9]{16}$/, "Paste the 16-character App Password Google generated."),
+    ),
 });
-export type Mailbox = z.infer<typeof mailboxSchema>;
-export function mailboxes(config: SalesConfig): Mailbox[] {
-  let input: unknown;
-  try {
-    input = JSON.parse(config.GMAIL_ACCOUNTS_JSON);
-  } catch {
-    throw new Error("Gmail account configuration must be valid JSON.");
-  }
-  const parsed = z.array(mailboxSchema).max(10).safeParse(input);
-  if (!parsed.success)
-    throw new Error(
-      "Gmail accounts need unique IDs, Gmail addresses and 16-character App Passwords.",
-    );
-  if (
-    new Set(parsed.data.map((m) => m.id)).size !== parsed.data.length ||
-    new Set(parsed.data.map((m) => m.email)).size !== parsed.data.length
-  )
-    throw new Error("Gmail account IDs and addresses must be unique.");
-  return parsed.data;
-}
+export type MailboxInput = z.infer<typeof mailboxInput>;
+// A decrypted sender, only ever held in memory by the worker or the connection check.
+export type Mailbox = { id: string; email: string; appPassword: string; displayName: string };
 export function scheduleTimes(count: number, start: Date, end: Date, random = Math.random) {
   const step = (end.getTime() - start.getTime()) / count;
   return Array.from(

@@ -13,14 +13,19 @@ const { values } = parseArgs({
     name: { type: "string" },
     "password-stdin": { type: "boolean" },
     "reset-password": { type: "boolean" },
+    role: { type: "string" },
   },
 });
 const input = z
-  .object({ email: z.email(), name: z.string().trim().min(1).max(100) })
+  .object({
+    email: z.email(),
+    name: z.string().trim().min(1).max(100),
+    role: z.enum(["admin", "member"]).default("member"),
+  })
   .safeParse(values);
 if (!input.success) {
   console.error(
-    "Usage: bun run team:add --email you@example.com --name 'Your name' [--password-stdin] [--reset-password]",
+    "Usage: bun run team:add --email you@example.com --name 'Your name' [--role admin|member] [--password-stdin] [--reset-password]",
   );
   process.exit(1);
 }

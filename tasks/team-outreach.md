@@ -16,7 +16,7 @@ Decisions:
 Checkpoints:
 
 - [x] Humanized drafting prompt, `{{sender}}` placeholder, deterministic style cleanup.
-- [ ] Admin role, per-member encrypted Gmail mailboxes, SMTP login check, setup instructions, sender-name rendering.
+- [x] Admin role, per-member encrypted Gmail mailboxes, SMTP login check, setup instructions, sender-name rendering.
 - [ ] Lead tracker: meeting status and table columns.
 - [ ] WhatsApp channel and businesses without websites.
 - [ ] Automatic research → draft pipeline.

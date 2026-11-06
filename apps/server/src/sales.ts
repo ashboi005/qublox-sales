@@ -1,5 +1,5 @@
 import { emailOutbox } from "@qublox-sales/db/schema/delivery";
-import { mailboxes } from "./mail-config";
+import { createMailboxService, type Viewer } from "./mailboxes";
 import { contactCapacity } from "./contact-cap";
 import { providerFor } from "./llm-provider";
 import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql, sum } from "drizzle-orm";
@@ -691,7 +691,8 @@ export function createSalesService(db: Database, config: SalesConfig) {
         dailyLimit: config.DAILY_CONTACT_LIMIT,
       };
     },
-    async settings() {
+    async settings(viewer: Viewer) {
+      const senders = await createMailboxService(db, config).list(viewer);
       const month = new Date();
       month.setUTCDate(1);
       month.setUTCHours(0, 0, 0, 0);
@@ -711,8 +712,11 @@ export function createSalesService(db: Database, config: SalesConfig) {
         monthSpent: Number(usage?.value || 0) / 1e6,
         dailyLimit: config.DAILY_CONTACT_LIMIT,
         authMode: "Private team, database membership",
-        emailSendingEnabled: config.EMAIL_SENDING_ENABLED && mailboxes(config).length > 0,
-        mailboxes: mailboxes(config).map((m) => ({ id: m.id, email: m.email })),
+        emailSendingEnabled: config.EMAIL_SENDING_ENABLED && senders.length > 0,
+        sendingSwitch: config.EMAIL_SENDING_ENABLED,
+        mailboxes: senders,
+        role: viewer.admin ? ("admin" as const) : ("member" as const),
+        companyName: config.COMPANY_NAME,
       };
     },
   };

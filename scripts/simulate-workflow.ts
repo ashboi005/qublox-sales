@@ -44,28 +44,31 @@ const record = (step: string, result: string) => {
 };
 try {
   await db.$client.query(
-    'TRUNCATE "user", campaign, prospect, activity, suppression, job, llm_usage, llm_provider_state CASCADE',
+    'TRUNCATE "user", campaign, prospect, activity, suppression, job, llm_usage, llm_provider_state, email_outbox CASCADE',
   );
   const origin = "http://127.0.0.1:3303";
-  const config = salesConfig({
-    DAILY_CONTACT_LIMIT: 10,
-    EMAIL_SENDING_ENABLED: true,
-    GMAIL_ACCOUNTS_JSON: JSON.stringify([
-      { id: "simulation", email: "simulation@gmail.com", appPassword: "abcdefghijklmnop" },
-    ]),
-  });
   const authConfig = {
     BETTER_AUTH_URL: origin,
     CORS_ORIGIN: origin,
     BETTER_AUTH_SECRET: "local-workflow-simulation-secret-only-123456",
   };
+  const config = salesConfig({
+    DAILY_CONTACT_LIMIT: 10,
+    EMAIL_SENDING_ENABLED: true,
+    BETTER_AUTH_SECRET: authConfig.BETTER_AUTH_SECRET,
+  });
   const auth = createAuth(authConfig, db);
   await provisionTeamAccount(authConfig, db, {
     email: "simulation@qublox.local",
     name: "Workflow simulation",
     password: "workflow-simulation-only-123",
+    role: "admin",
   });
-  app = createApp({ db, auth, origin, config }).listen({ hostname: "127.0.0.1", port: 3310 });
+  // The Gmail login check is stubbed: no SMTP connection is opened in the simulation.
+  app = createApp({ db, auth, origin, config, verifyMailbox: async () => {} }).listen({
+    hostname: "127.0.0.1",
+    port: 3310,
+  });
   const endpoint = "http://127.0.0.1:3310/api";
   const signIn = await fetch(`${endpoint}/auth/sign-in/email`, {
     method: "POST",
@@ -237,6 +240,7 @@ try {
   });
   mail = await api(`/prospects/${mail.id}/draft`, "PUT", {
     ...draft,
+    body: `Hi team,\n\n{{sender}} here from Qublox. ${draft.body}\n\nThanks,\n{{sender}}`,
     evidenceIds: [mail.evidence[0]!.id],
     version: mail.version,
   });
@@ -244,15 +248,22 @@ try {
     action: "approve",
     version: mail.version,
   });
+  const [sender] = await api<{ id: string }[]>("/mailboxes/me", "PUT", {
+    email: "simulation@gmail.com",
+    displayName: "Simran",
+    appPassword: "abcd efgh ijkl mnop",
+  });
+  record("Gmail sender setup", "Teammate connected their own Gmail; App Password stored encrypted");
   const queued = await api<{ queued: number }>("/deliveries", "POST", {
     prospects: [{ id: mail.id, version: mail.version }],
-    senderIds: ["simulation"],
+    senderIds: [sender!.id],
     mode: "now",
   });
   assert.equal(queued.queued, 1);
   let smtpCalls = 0;
   const simulatedDelivery = createDeliveryService(db, config, async (_account, snapshot) => {
     assert.equal(snapshot.toAddress, "recipient@example.invalid");
+    assert.ok(snapshot.body.startsWith("Hi team,\n\nSimran here from Qublox."));
     smtpCalls++;
     return { messageId: "simulated-smtp-acceptance" };
   });

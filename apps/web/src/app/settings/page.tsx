@@ -1,5 +1,6 @@
 "use client";
 import { settingsSchema } from "@qublox-sales/shared";
+import { GmailSender } from "@/components/gmail-sender";
 import { Workspace, Loading, Notice, Status } from "@/components/workspace";
 import { useResource } from "@/lib/use-resource";
 
@@ -23,6 +24,7 @@ function Settings() {
         <button onClick={settings.reload}>Refresh status</button>
       </div>
       {settings.error && <Notice error>{settings.error}</Notice>}
+      {s && <GmailSender settings={s} onChange={settings.reload} />}
       {settings.loading ? (
         <Loading label="Checking workspace settings…" />
       ) : (
@@ -98,15 +100,18 @@ function Settings() {
             <div>
               <dt>Email delivery</dt>
               <dd>
-                {s.emailSendingEnabled
-                  ? "Gmail sending enabled"
-                  : "Gmail sending disabled · manual sending available"}
+                {!s.sendingSwitch
+                  ? "Switched off on the server · manual sending available"
+                  : s.emailSendingEnabled
+                    ? "Gmail sending enabled"
+                    : "No Gmail sender connected yet"}
                 <p>
-                  Approve the exact draft, then send now or schedule a reviewed batch. Configured
-                  sender accounts:{" "}
-                  {s.mailboxes.length ? s.mailboxes.map((m) => m.email).join(", ") : "none"}.
-                  Configuration does not verify the Gmail connection or guarantee inbox placement.
-                  Copy and email-app controls remain available when no email is pending.
+                  Approve the exact draft, then send now or schedule a reviewed batch from a
+                  connected Gmail.{" "}
+                  {s.role === "admin"
+                    ? "As an admin you can send from every teammate's connected Gmail."
+                    : "You can send from your own connected Gmail; an admin can use the whole team's."}{" "}
+                  Gmail accepting a message does not guarantee inbox placement.
                 </p>
               </dd>
             </div>

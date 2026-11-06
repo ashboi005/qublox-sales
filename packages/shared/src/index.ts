@@ -223,7 +223,7 @@ export const queueEmailInput = z.object({
     .min(1)
     .max(100),
   senderIds: z
-    .array(z.string().regex(/^[a-z0-9_-]{1,40}$/))
+    .array(z.string().regex(/^[a-z0-9_-]{1,40}$/i))
     .min(1)
     .max(10),
   mode: z.enum(["now", "spread"]),
@@ -258,6 +258,15 @@ export const overviewSchema = z.object({
   contactedToday: z.number(),
   dailyLimit: z.number(),
 });
+export const mailboxSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  displayName: z.string(),
+  ownerName: z.string(),
+  mine: z.boolean(),
+  verifiedAt: z.string().nullable(),
+});
+export type MailboxSummary = z.infer<typeof mailboxSchema>;
 export const settingsSchema = z.object({
   aiConfigured: z.boolean(),
   provider: z.enum(["groq", "gemini"]),
@@ -271,7 +280,10 @@ export const settingsSchema = z.object({
   dailyLimit: z.number(),
   authMode: z.string(),
   emailSendingEnabled: z.boolean(),
-  mailboxes: z.array(z.object({ id: z.string(), email: z.string() })),
+  sendingSwitch: z.boolean(),
+  mailboxes: z.array(mailboxSchema),
+  role: z.enum(["admin", "member"]),
+  companyName: z.string(),
 });
 
 export * from "./message";
