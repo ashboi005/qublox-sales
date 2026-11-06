@@ -3,14 +3,13 @@ import type { Database } from "@qublox-sales/db";
 import * as schema from "@qublox-sales/db/schema/auth";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
-import { allowedEmails, isTeamMember } from "./access";
-export { allowedEmails, isTeamMember } from "./access";
+import { isTeamMember } from "./access";
+export { isTeamMember } from "./access";
 
 export type AuthConfig = {
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
   CORS_ORIGIN: string;
-  ALLOWED_EMAILS: string;
 };
 
 export function createAuth(
@@ -18,7 +17,6 @@ export function createAuth(
   database: Database,
   options: { provisionAccounts?: boolean } = {},
 ) {
-  const members = allowedEmails(env.ALLOWED_EMAILS);
   return betterAuth({
     database: drizzleAdapter(database, {
       provider: "pg",
@@ -32,12 +30,23 @@ export function createAuth(
       autoSignIn: false,
     },
     databaseHooks: {
+      session: {
+        create: {
+          before: async (session) => {
+            if (!(await isTeamMember(database, session.userId)))
+              throw new APIError("FORBIDDEN", {
+                message: "Your workspace membership is inactive. Contact your administrator.",
+              });
+            return { data: session };
+          },
+        },
+      },
       user: {
         create: {
           before: async (user) => {
-            if (!isTeamMember(user.email, members)) {
+            if (!options.provisionAccounts) {
               throw new APIError("FORBIDDEN", {
-                message: "This workspace is private. Ask your team to add your email.",
+                message: "This workspace is private. Ask your administrator to create an account.",
               });
             }
             return { data: { ...user, email: user.email.trim().toLowerCase() } };

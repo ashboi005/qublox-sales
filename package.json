@@ -54,7 +54,9 @@
     "test": "bun test apps/server/src packages/shared/src packages/auth/src apps/maps-extension/tests",
     "extension:build": "bun scripts/build-extension.ts",
     "test:integration": "bun scripts/test-integration.ts",
-    "simulate": "bun scripts/simulate-workflow.ts"
+    "simulate": "bun scripts/simulate-workflow.ts",
+    "team:remove": "cd apps/server && bun run team:remove",
+    "team:migrate": "cd apps/server && bun run team:migrate"
   },
   "dependencies": {
     "zod": "catalog:"

@@ -625,7 +625,7 @@ export function createSalesService(db: Database, config: SalesConfig) {
         monthlyBudget: config.LLM_MONTHLY_BUDGET_USD,
         monthSpent: Number(usage?.value || 0) / 1e6,
         dailyLimit: config.DAILY_CONTACT_LIMIT,
-        authMode: "Private team, email and password",
+        authMode: "Private team, database membership",
       };
     },
   };

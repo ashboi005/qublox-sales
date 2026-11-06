@@ -12,7 +12,9 @@
     "team:add": "bun src/provision.ts",
     "start": "bun run dist/index.mjs",
     "env:generate": "varlock codegen",
-    "auth:generate": "varlock run -- bun x auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes"
+    "auth:generate": "varlock run -- bun x auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes",
+    "team:remove": "bun src/team-admin.ts remove",
+    "team:migrate": "bun src/team-admin.ts migrate"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",

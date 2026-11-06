@@ -9,7 +9,6 @@ export const auth = createAuth(
     BETTER_AUTH_URL: ENV.BETTER_AUTH_URL,
     BETTER_AUTH_SECRET: ENV.BETTER_AUTH_SECRET,
     CORS_ORIGIN: ENV.CORS_ORIGIN,
-    ALLOWED_EMAILS: process.env.ALLOWED_EMAILS || "",
   },
   db,
 );

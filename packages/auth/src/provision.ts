@@ -1,8 +1,10 @@
-import { and, eq } from "drizzle-orm";
+import { teamMember } from "@qublox-sales/db/schema/team";
+import { z } from "zod";
+import { and, eq, inArray } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
 import type { Database } from "@qublox-sales/db";
 import { account, session, user } from "@qublox-sales/db/schema/auth";
-import { allowedEmails, isTeamMember, createAuth, type AuthConfig } from "./index";
+import { createAuth, type AuthConfig } from "./index";
 
 // Invoked by the offline administrator command, never by an HTTP route.
 export async function provisionTeamAccount(
@@ -10,9 +12,7 @@ export async function provisionTeamAccount(
   db: Database,
   input: { email: string; name: string; password: string; reset?: boolean },
 ) {
-  const email = input.email.trim().toLowerCase();
-  if (!isTeamMember(email, allowedEmails(env.ALLOWED_EMAILS)))
-    throw new Error("This email is not on the team access list.");
+  const email = z.email().parse(input.email.trim().toLowerCase());
   if (input.password.length < 12 || input.password.length > 128)
     throw new Error("Use a password between 12 and 128 characters.");
   const [existing] = await db.select().from(user).where(eq(user.email, email));
@@ -27,6 +27,10 @@ export async function provisionTeamAccount(
         .returning({ id: account.id });
       if (!changed.length) throw new Error("No password account exists for this email.");
       await tx.delete(session).where(eq(session.userId, existing.id));
+      await tx
+        .insert(teamMember)
+        .values({ userId: existing.id, active: true })
+        .onConflictDoUpdate({ target: teamMember.userId, set: { active: true } });
     });
     return;
   }
@@ -41,7 +45,7 @@ export async function provisionTeamAccount(
   // Better Auth deliberately returns synthetic users for some signup failures.
   // Confirm the stored credential, including when two provisioning commands race.
   const [stored] = await db
-    .select({ password: account.password })
+    .select({ password: account.password, userId: user.id })
     .from(account)
     .innerJoin(user, eq(account.userId, user.id))
     .where(and(eq(user.email, email), eq(account.providerId, "credential")));
@@ -52,4 +56,38 @@ export async function provisionTeamAccount(
     throw new Error(
       "Account creation could not be confirmed. Check whether the account already exists.",
     );
+  await db.insert(teamMember).values({ userId: stored.userId, active: true }).onConflictDoNothing();
+}
+
+export async function disableTeamAccount(db: Database, email: string) {
+  return db.transaction(async (tx) => {
+    const [member] = await tx
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, email.trim().toLowerCase()))
+      .for("update");
+    if (!member) throw new Error("No account exists for this email.");
+    await tx
+      .insert(teamMember)
+      .values({ userId: member.id, active: false })
+      .onConflictDoUpdate({ target: teamMember.userId, set: { active: false } });
+    await tx.delete(session).where(eq(session.userId, member.id));
+  });
+}
+
+// One-time migration, never a runtime authorization source. Do not reactivate revoked members.
+export async function migrateLegacyTeam(db: Database, emails: string[]) {
+  const normalized = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  if (!normalized.length) return 0;
+  const members = await db
+    .select({ userId: user.id })
+    .from(user)
+    .where(inArray(user.email, normalized));
+  if (!members.length) return 0;
+  const added = await db
+    .insert(teamMember)
+    .values(members.map((m) => ({ ...m, active: true })))
+    .onConflictDoNothing()
+    .returning({ userId: teamMember.userId });
+  return added.length;
 }

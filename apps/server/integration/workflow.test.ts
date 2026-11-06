@@ -3,7 +3,13 @@ import { LlmDeferred } from "../src/llm-provider";
 import { beforeAll, afterAll, describe, expect, test } from "bun:test";
 import { createDb } from "@qublox-sales/db";
 import { createAuth } from "@qublox-sales/auth";
-import { provisionTeamAccount } from "@qublox-sales/auth/provision";
+import { teamMember } from "@qublox-sales/db/schema/team";
+import { user } from "@qublox-sales/db/schema/auth";
+import {
+  provisionTeamAccount,
+  disableTeamAccount,
+  migrateLegacyTeam,
+} from "@qublox-sales/auth/provision";
 import { createApp } from "../src/app";
 import type { Campaign, Prospect } from "@qublox-sales/shared";
 import { createSalesService } from "../src/sales";
@@ -18,7 +24,6 @@ if (!process.env.DATABASE_URL?.endsWith("/qublox_sales_test"))
 const db = createDb({ DATABASE_URL: process.env.DATABASE_URL });
 const origin = "http://localhost:3001";
 const config = salesConfig({
-  ALLOWED_EMAILS: "test@qublox.local",
   LLM_MONTHLY_BUDGET_USD: 5,
   DAILY_CONTACT_LIMIT: 1,
 });
@@ -26,7 +31,6 @@ const authConfig = {
   BETTER_AUTH_URL: origin,
   BETTER_AUTH_SECRET: "integration-test-only-secret-at-least-thirty-two-characters",
   CORS_ORIGIN: origin,
-  ALLOWED_EMAILS: config.ALLOWED_EMAILS,
 };
 const auth = createAuth(authConfig, db);
 const app = createApp({ db, auth, origin, config });
@@ -103,14 +107,41 @@ describe("private workspace", () => {
     );
     expect(result.response.status).toBe(400);
   });
-  test("offline provisioning still rejects non-team addresses", async () => {
-    await expect(
-      provisionTeamAccount(authConfig, db, {
-        name: "Stranger",
-        email: "stranger@example.com",
-        password: "long-test-password-123",
-      }),
-    ).rejects.toThrow("not on the team access list");
+  test("offline team:add grants database access without an environment allowlist", async () => {
+    await provisionTeamAccount(authConfig, db, {
+      name: "New member",
+      email: "new-member@example.com",
+      password: "new-member-test-password-123",
+    });
+    const member = (
+      await db.select().from(user).where(eq(user.email, "new-member@example.com"))
+    )[0]!;
+    expect(
+      (await db.select().from(teamMember).where(eq(teamMember.userId, member.id)))[0]!.active,
+    ).toBe(true);
+    const login = await auth.api.signInEmail({
+      body: { email: member.email, password: "new-member-test-password-123" },
+      asResponse: true,
+    });
+    expect(login.status).toBe(200);
+    const headers = {
+      Cookie: login.headers
+        .getSetCookie()
+        .map((v) => v.split(";")[0])
+        .join("; "),
+    };
+    expect((await app.handle(new Request(`${origin}/api/prospects`, { headers }))).status).toBe(
+      200,
+    );
+    await disableTeamAccount(db, member.email);
+    expect((await app.handle(new Request(`${origin}/api/prospects`, { headers }))).status).toBe(
+      401,
+    );
+    const rejected = await auth.api.signInEmail({
+      body: { email: member.email, password: "new-member-test-password-123" },
+      asResponse: true,
+    });
+    expect(rejected.status).toBeGreaterThanOrEqual(400);
   });
   test("foreign-origin mutations are rejected", async () => {
     expect(
@@ -355,17 +386,24 @@ test("changing an offer revokes approval and requires saving against its new rev
   );
 });
 
-test("a removed member cannot use an existing session", async () => {
-  const restricted = createApp({
-    db,
-    auth,
-    origin,
-    config: { ...config, ALLOWED_EMAILS: "someone-else@example.com" },
-  });
-  const response = await restricted.handle(
-    new Request(`${origin}/api/prospects`, { headers: { Cookie: cookie } }),
+test("membership changes revoke API access without restarting the server", async () => {
+  const member = (await db.select().from(user).where(eq(user.email, "test@qublox.local")))[0]!;
+  await db.update(teamMember).set({ active: false }).where(eq(teamMember.userId, member.id));
+  try {
+    expect((await request("/api/prospects")).response.status).toBe(403);
+  } finally {
+    await db.update(teamMember).set({ active: true }).where(eq(teamMember.userId, member.id));
+  }
+});
+test("legacy membership migration enables only requested existing users and never reactivates a revocation", async () => {
+  const old = (await db.select().from(user).where(eq(user.email, "new-member@example.com")))[0]!;
+  expect(await migrateLegacyTeam(db, [old.email])).toBe(0);
+  expect((await db.select().from(teamMember).where(eq(teamMember.userId, old.id)))[0]!.active).toBe(
+    false,
   );
-  expect(response.status).toBe(403);
+  await db.delete(teamMember).where(eq(teamMember.userId, old.id));
+  expect(await migrateLegacyTeam(db, ["someone-not-present@example.com"])).toBe(0);
+  expect(await migrateLegacyTeam(db, [old.email.toUpperCase()])).toBe(1);
 });
 
 test("suppression cancels active research and clears its processing state", async () => {
@@ -384,7 +422,7 @@ test("suppression cancels active research and clears its processing state", asyn
 });
 
 test("offline password reset revokes sessions and changes the accepted credential", async () => {
-  const config = { ...authConfig, ALLOWED_EMAILS: "reset@qublox.local" };
+  const config = authConfig;
   const member = {
     name: "Reset fixture",
     email: "reset@qublox.local",

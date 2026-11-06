@@ -1,7 +1,7 @@
 # Qublox sales v0.1
 
 ## Objective and accepted assumptions
-Build an internal, authenticated sales research workbench for Qublox. The user authorized implementation after reviewing the research and selected Next.js, Elysia, Bun, Better Auth, PostgreSQL, Drizzle, and Docker, hosted on their VPS. This is a single shared team workspace, not a public multi-tenant SaaS. An administrator provisions allowlisted accounts privately using the offline CLI; public signup is disabled. The serving API checks membership on every request.
+Build an internal, authenticated sales research workbench for Qublox. The user authorized implementation after reviewing the research and selected Next.js, Elysia, Bun, Better Auth, PostgreSQL, Drizzle, and Docker, hosted on their VPS. This is a single shared team workspace, not a public multi-tenant SaaS. An administrator provisions database-backed team accounts privately using the offline CLI; public signup is disabled. The serving API checks active database membership on every request.
 
 The first usable slice is: create a campaign → add/import prospects → collect public website evidence → optionally score/draft with the selected Groq/Gemini account → edit and approve → compose/copy manually → record contact and follow-ups. Instagram is manual. The app never sends email as a side effect of approval. SMTP delivery, paid contact databases, social scraping, and automated screenshots are subsequent integrations, not prerequisites for this slice.
 
@@ -9,7 +9,7 @@ The first usable slice is: create a campaign → add/import prospects → collec
 - `apps/web`: Next App Router, React, CSS tokens, browser auth client, same-origin API proxy.
 - `apps/server`: Elysia REST endpoints and a separate durable research/drafting worker.
 - `apps/maps-extension`: unpacked MV3 Chrome/Brave collector, local saved collections, JSON/CSV export, and scoped workspace transfer.
-- `packages/auth`: Better Auth password/session configuration, private provisioning, and session-revoking password resets.
+- `packages/auth`: Better Auth password/session configuration, private provisioning and database membership, and session-revoking password resets.
 - `packages/db`: Drizzle PostgreSQL schemas and checked-in SQL migrations.
 - `packages/shared`: Zod boundary contracts and shared types.
 - `docs/research`: existing sourced build/buy analysis.

@@ -34,7 +34,7 @@ function Settings() {
                 {s.authMode}
                 <p>
                   Public signup is closed. Your administrator creates accounts privately; only
-                  allowlisted team members can access the workspace.
+                  active database members can access the workspace.
                 </p>
               </dd>
             </div>

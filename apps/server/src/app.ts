@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { z, ZodError } from "zod";
-import { allowedEmails, isTeamMember, type createAuth } from "@qublox-sales/auth";
+import { isTeamMember, type createAuth } from "@qublox-sales/auth";
 import type { Database } from "@qublox-sales/db";
 import {
   campaignInput,
@@ -22,7 +22,6 @@ export function createApp(options: {
 }) {
   const { db, auth, origin, config } = options;
   const sales = createSalesService(db, config);
-  const members = allowedEmails(config.ALLOWED_EMAILS);
   const id = (value: string) => z.uuid().parse(value);
   return new Elysia({ serve: { maxRequestBodySize: 1024 * 1024 } })
     .onError(({ error, set, code }) => {
@@ -82,8 +81,8 @@ export function createApp(options: {
           const session = await auth.api.getSession({ headers: request.headers });
           if (!session)
             throw new AppError(401, "UNAUTHENTICATED", "Sign in to access your workspace.");
-          if (!isTeamMember(session.user.email, members))
-            throw new AppError(403, "FORBIDDEN", "Your email is not on this team's access list.");
+          if (!(await isTeamMember(db, session.user.id)))
+            throw new AppError(403, "FORBIDDEN", "Your workspace membership is inactive.");
           if (
             !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
             request.headers.get("origin") !== origin

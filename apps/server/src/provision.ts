@@ -36,13 +36,12 @@ try {
       BETTER_AUTH_URL: ENV.BETTER_AUTH_URL,
       BETTER_AUTH_SECRET: ENV.BETTER_AUTH_SECRET,
       CORS_ORIGIN: ENV.CORS_ORIGIN,
-      ALLOWED_EMAILS: process.env.ALLOWED_EMAILS || "",
     },
     db,
     { ...input.data, password, reset: values["reset-password"] },
   );
   console.log(
-    `Account ${values["reset-password"] ? "password reset; all prior sessions revoked" : "created"} for ${input.data.email}. Share credentials privately with that teammate.`,
+    `Account ${values["reset-password"] ? "password reset and membership enabled; all prior sessions revoked" : "created"} for ${input.data.email}. Share credentials privately with that teammate.`,
   );
   if (!values["password-stdin"]) console.log(`Generated password (save it now): ${password}`);
 } catch (error) {

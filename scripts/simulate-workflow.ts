@@ -46,12 +46,11 @@ try {
     'TRUNCATE "user", campaign, prospect, activity, suppression, job, llm_usage, llm_provider_state CASCADE',
   );
   const origin = "http://127.0.0.1:3303";
-  const config = salesConfig({ ALLOWED_EMAILS: "simulation@qublox.local", DAILY_CONTACT_LIMIT: 5 });
+  const config = salesConfig({ DAILY_CONTACT_LIMIT: 5 });
   const authConfig = {
     BETTER_AUTH_URL: origin,
     CORS_ORIGIN: origin,
     BETTER_AUTH_SECRET: "local-workflow-simulation-secret-only-123456",
-    ALLOWED_EMAILS: config.ALLOWED_EMAILS,
   };
   const auth = createAuth(authConfig, db);
   await provisionTeamAccount(authConfig, db, {

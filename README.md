@@ -33,9 +33,13 @@ The account command prints a strong generated password once. Save it privately. 
 
 Local ports: web **3001**, API **3100**, PostgreSQL **5438** on loopback. The API port avoids the other project already using port 3000 on this machine. Override `PORT` in `apps/server/.env.local` and the corresponding `SERVER_URL` in `apps/web/.env.local` if needed.
 
-`setup` creates ignored local environment files with random secrets and a development email allowlist. It refuses to overwrite existing configuration. If setup reports existing files, use them or edit them deliberately; do not delete a database password while keeping the corresponding PostgreSQL volume.
+`setup` creates ignored local environment files with random secrets . It refuses to overwrite existing configuration. If setup reports existing files, use them or edit them deliberately; do not delete a database password while keeping the corresponding PostgreSQL volume.
 
-`ALLOWED_EMAILS` controls who can log into the dashboard, not which inbox sends outreach. Personal Gmail addresses are fine; branded mailboxes are not required. For actual team accounts, put their exact email addresses in `ALLOWED_EMAILS` in `apps/server/.env.local`, restart the API, then run `team:add` for each person. The root `.env` supplies root commands and Docker; app-specific `.env.local` files support running workspaces directly. Root/shell variables take precedence when inherited by child commands. Setup uses the local database URL at port 5438; replace it with your existing database URL for deployment. Keep database/key settings consistent if you launch workspaces directly. Passwords need at least 12 characters. There is no verification-email service or public registration route to manage.
+Dashboard access is stored in PostgreSQL. Personal Gmail addresses are fine; branded mailboxes are not required. `team:add` creates an active member, and `team:remove --email address` disables membership and revokes sessions immediately. Public signup remains closed. An administrator can reset a password and re-enable membership using `team:add --reset-password`; passwords need at least 12 characters. There is no email-verification service or public registration route to manage.
+
+For an existing installation, run migrations, then run `bun run team:migrate` once before removing the old `ALLOWED_EMAILS` variable. It migrates only matching existing users and never reactivates an explicitly disabled membership. Alternatively, pass `--emails comma-separated-addresses`. New installations need no allowlist.
+
+The root `.env` supplies root commands and Docker; app-specific `.env.local` files support running workspaces directly. Root/shell variables take precedence when inherited by child commands. Setup uses local PostgreSQL at port 5438; replace that URL for deployment. Keep database/key settings consistent when launching workspaces directly.
 
 ## First session
 

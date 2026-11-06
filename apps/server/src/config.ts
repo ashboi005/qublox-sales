@@ -2,7 +2,6 @@ import { z } from "zod";
 
 const schema = z
   .object({
-    ALLOWED_EMAILS: z.string().default(""),
     LLM_PROVIDER: z.enum(["groq", "gemini"]).default("groq"),
     GROQ_API_KEY: z.string().default(""),
     GEMINI_API_KEY: z.string().default(""),

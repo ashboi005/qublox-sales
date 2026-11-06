@@ -25,7 +25,7 @@ Install Docker Engine with Compose v2 on your VPS. A small VPS can run the pilot
 3. Set `DATABASE_URL` to your existing PostgreSQL connection string and generate `BETTER_AUTH_SECRET` with `openssl rand -hex 32`. Use a dedicated application database/user with migration permissions, and URL-encode special characters in credentials. `POSTGRES_PASSWORD` is not required. Replace all placeholders.
 
    The URL must resolve **from the containers**. `localhost` means the container itself. For another Dockerized database, attach these services to its private Docker network and use that database service hostname. For host PostgreSQL, configure a private reachable address and firewall/`pg_hba.conf` deliberately; do not expose port 5432 publicly. Preserve TLS verification when your database requires TLS.
-4. Set `APP_ORIGIN=https://sales.your-domain.com` with no trailing slash or path. Set `ALLOWED_EMAILS` to the exact team email addresses. Leave AI key fields empty for manual drafting. Keep `DAILY_CONTACT_LIMIT=5` initially.
+4. Set `APP_ORIGIN=https://sales.qubloxhq.com` with no trailing slash or path. Leave AI key fields empty for manual drafting. Keep `DAILY_CONTACT_LIMIT=5` initially.
 5. Point that hostname to your VPS and configure HTTPS using your existing host reverse proxy. [deploy/Caddyfile.example](../deploy/Caddyfile.example) is a host-installed Caddy example. If your proxy is itself containerized, configure its network/address deliberately; its `127.0.0.1` is not the Docker host.
 6. Start and inspect:
 
@@ -50,13 +50,16 @@ Visit the public HTTPS URL and sign in. Create a test offer and business; run on
 
 ## Team changes and recovery
 
-Add/remove addresses in root `.env`, then recreate both application processes to load the new list:
+Use the offline CLI; no environment allowlist or restart is needed:
 
 ```bash
-docker compose up -d --force-recreate server worker
+docker compose exec server bun run team:add --email teammate@gmail.com --name 'Teammate'
+docker compose exec server bun run team:remove --email teammate@gmail.com
 ```
 
-Removing an address immediately blocks workspace API access after recreation, including existing sessions. An administrator can reset an existing account's password and revoke all its stored sessions:
+Membership is checked from PostgreSQL on every workspace request. Removal also deletes existing sessions. For an upgrade from the old allowlist, run migrations then `team:migrate --emails comma-separated-existing-member-emails` once. It only grants missing membership to those existing users and does not re-enable explicitly revoked members. Remove the obsolete `ALLOWED_EMAILS` setting afterward.
+
+An administrator can reset an existing account's password, enable membership and revoke all stored sessions:
 
 ```bash
 docker compose exec server bun run team:add --email you@your-domain.com --name 'Your name' --reset-password
