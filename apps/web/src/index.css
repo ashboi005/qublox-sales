@@ -3,6 +3,9 @@
  * axes: light/grotesk-sans/chromatic-red · posture: restrained · brand: local website source, 2026-11-06 · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: density; use five aligned totals, clearer table rows and quieter form wells. */
 /* Hallmark · dismissed 70 · existing handlers call authenticated APIs; success messages are backed by requests. */
+/* Hallmark · dismissed F4 · selected offer/stage wells are selection states, not additional primary-action recipes. */
+/* Hallmark · dismissed 49 · global button/.button nowrap is retained; long labels checked at 375px. */
+/* Hallmark · finish-review: subagent · 1 finding · 1 resolved: mobile stage continuation; confirmed from recapture. */
 /* Hallmark · answered F25 · mobile tables retain every column with a pinned business column and horizontal scrolling. */
 @import "./styles/tokens.css";
 @import "./styles/base.css";
@@ -49,7 +52,6 @@ button,
   background: var(--color-sheet);
   color: var(--color-ink);
   cursor: pointer;
-  font-weight: 600;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -156,28 +158,14 @@ legend {
   padding: 0 var(--gutter);
   min-height: 76px;
   border-bottom: 1px solid var(--color-rule);
-  background: var(--color-sheet);
 }
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-sm);
   font-size: var(--text-lg);
   font-weight: 650;
   text-decoration: none;
-  letter-spacing: -0.03em;
   flex-shrink: 0;
-}
-.brand-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  color: var(--color-accent-ink);
-  background: var(--color-accent);
-  font-size: 25px;
-  line-height: 1;
-  padding-bottom: var(--space-2xs);
 }
 .brand-sub {
   font-size: var(--text-sm);
@@ -188,13 +176,11 @@ legend {
 .topbar nav {
   display: flex;
   align-self: stretch;
-  gap: var(--space-28);
 }
 .topbar nav a {
   display: flex;
   align-items: center;
   text-decoration: none;
-  color: var(--color-muted);
   border-bottom: 2px solid transparent;
   padding-top: var(--space-3xs);
   white-space: nowrap;
@@ -240,7 +226,6 @@ legend {
 }
 .page-head h1 {
   font-size: var(--text-2xl);
-  max-width: 34ch;
   margin-top: var(--space-xs);
 }
 .page-head p {
@@ -272,8 +257,6 @@ legend {
 }
 .metric strong {
   display: block;
-  font-size: var(--text-2xl);
-  font-weight: 500;
   letter-spacing: -0.035em;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
@@ -317,12 +300,10 @@ table {
 }
 th {
   font-weight: 500;
-  color: var(--color-muted);
   font-size: var(--text-xs);
   border-block: 1px solid var(--color-rule);
   padding: var(--space-sm) var(--space-md);
   white-space: nowrap;
-  background: color-mix(in oklab, var(--color-paper) 35%, var(--color-sheet));
 }
 td {
   padding: var(--space-20) var(--space-md);
@@ -338,7 +319,6 @@ td:last-child {
   padding-right: 0;
 }
 td a:not(.button) {
-  font-weight: 600;
   text-decoration: none;
 }
 td a:hover {
@@ -374,7 +354,6 @@ tbody tr:hover {
 .status-running,
 .status-queued {
   color: var(--color-accent);
-  border-color: color-mix(in oklab, var(--color-accent) 40%, var(--color-rule));
 }
 .status-suppressed,
 .status-failed {
@@ -402,13 +381,11 @@ tbody tr:hover {
 }
 .notice {
   padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--color-rule);
   background: var(--color-wash);
   margin: var(--space-md) 0;
   overflow-wrap: anywhere;
 }
 .notice.error {
-  border-color: var(--color-error);
   color: var(--color-error);
   background: color-mix(in oklab, var(--color-error) 5%, var(--color-sheet));
 }
@@ -441,9 +418,6 @@ tbody tr:hover {
   grid-column: 1/-1;
 }
 .entry-panel {
-  background: color-mix(in oklab, var(--color-paper) 25%, var(--color-sheet));
-  border: 1px solid var(--color-rule);
-  padding: var(--space-lg);
   margin-bottom: var(--space-lg);
 }
 .entry-panel h2 {
@@ -498,13 +472,7 @@ tbody tr:hover {
   background: var(--color-paper);
 }
 .auth-panel {
-  width: min(440px, 100%);
-  padding: var(--space-xl) var(--space-32);
   background: var(--color-sheet);
-  border-top: 3px solid var(--color-accent);
-}
-.auth-panel .brand {
-  margin-bottom: var(--space-48);
 }
 .auth-panel h1 {
   margin: var(--space-sm) 0;
@@ -583,7 +551,6 @@ tbody tr:hover {
 .source p {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  line-height: 1.6;
 }
 .source-meta {
   display: flex;
@@ -612,7 +579,6 @@ tbody tr:hover {
   margin-top: var(--space-3xs);
 }
 .draft-body {
-  min-height: 290px;
   font-size: var(--text-md);
   line-height: 1.65;
 }
@@ -805,12 +771,9 @@ tbody tr:hover {
 }
 .pipeline-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
   margin-bottom: var(--space-md);
 }
 .pipeline-tabs button[aria-pressed="true"] {
-  border-color: var(--color-ink);
   font-weight: 600;
 }
 
@@ -1039,14 +1002,13 @@ caption {
   border-radius: 0;
 }
 .notice {
-  border: 0;
-  border-left: 3px solid var(--color-accent);
+  border: 1px solid var(--color-rule);
   font-size: var(--text-sm);
   border-radius: 0;
   line-height: 1.6;
 }
 .notice.error {
-  border-left-color: var(--color-error);
+  border-color: var(--color-error);
 }
 .empty {
   padding-block: var(--space-xl);
@@ -1073,7 +1035,6 @@ caption {
 }
 .offer-list button[aria-pressed="true"] {
   background: var(--color-selected);
-  box-shadow: inset 3px 0 var(--color-accent);
 }
 .offer-list button p {
   font-size: var(--text-sm);
@@ -1265,5 +1226,28 @@ summary:hover {
   }
   .section-title > .hint {
     overflow-wrap: anywhere;
+  }
+}
+
+details.entry-panel:not([open]) {
+  padding: var(--space-sm) var(--space-md);
+}
+@media (max-width: 680px) {
+  .filters {
+    flex-basis: 100%;
+  }
+  .toolbar > .text-button {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .filters > button[aria-label="Search"] {
+    flex: 0 0 44px;
+    width: 44px;
+    padding-inline: 0;
+  }
+  .pipeline-tabs {
+    gap: var(--space-xs);
   }
 }

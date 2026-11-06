@@ -107,3 +107,25 @@ Continued in Claude Code after Codex reached its usage limit; the staged Gmail s
 - Find leads: Google Places mapping, paging, closed-place filtering, key errors and the monthly allowance are tested with stubbed responses; no live Places request was made (no key configured). OpenStreetMap live check: names are found but few contacts (39 Amritsar hotels, 5 with phone, 3 with website; "clothing store" phrasing found none, "clothes shop" found 6).
 - Smoke test on the running local dev stack with a temporary account (deleted afterwards): settings report OpenStreetMap, lead-search history loads, and an incomplete polish request now returns a validation error instead of an AI failure.
 - VPS: migration `20261106140111_jittery_bedlam` (lead_search table) still needs applying.
+
+
+## Qublox website UI restyle (6 November 2026)
+
+Scope: presentation only. Read the current history, team-outreach checklist, user guide, lead-search documentation and frontend components before restyling. Palette and Archivo type come from `../qublox-website/src/app/tokens.css`; the wordmark treatment comes from its Header component. The local WOFF2 is bundled with the SIL OFL notice, with no external font request at runtime.
+
+Changes: warm bone surfaces, dark ink, deep signal-red controls, clearer table rows and selection states, five aligned pipeline totals, quieter form wells, consistent field/button sizes, evidence/message headings, account/login spacing and mobile filters. Existing top navigation, component trees, fields, routes, APIs and handlers stay. Source comparison preserved 17/17 links, 33/33 fields and 76/76 handlers. Recent-search metadata is laid out in separate spans; the numbered evidence/message decoration was removed. No product claims were added.
+
+Checks:
+
+- `bun run check-types`: all six workspace packages pass.
+- `bun run test`: 68 pass, 0 fail.
+- `bun run test:integration`: 44 pass, 0 fail, localhost disposable database only.
+- `bun run build`: server and Next production build pass; all existing routes remain.
+- `bun run simulate`: pass, including import, real public demo-site research, draft approval invalidation, manual contact/reply/meeting tracking, suppression, encrypted fake mailbox and exactly one fake SMTP acceptance. Zero LLM requests and no real emails or messages.
+- Hallmark `sloplint --scope app --genre modern-minimal --render --kept`: static result 0 FAIL, 0 WARN, eight documented dismissals. Render tier could not run because puppeteer-core is absent. Browser verification used the provided CUA browser instead; no automated Hallmark render pass is claimed.
+- CUA checked login, pipeline, lead finder, offers, outbox, follow-ups, settings and prospect review. Responsive checks at 320, 375, 768, 1440 and 1920px. Root has no horizontal overflow; at 1920 the workspace caps at 1440px. Mobile tables retain all columns with a pinned business column and inner horizontal scrolling. At 375 the search field/button share a row and the two selects share the next row. Keyboard focus is an instant solid 2px outline.
+- Fresh-context Hallmark visual review: one mobile stage discoverability finding, resolved and confirmed from recapture. Other stages remain available by horizontal scrolling.
+
+Proof: ignored local artifacts in `artifacts/ui/`, including `compare.html`, login before/after and desktop/mobile captures. Only login has an original rendered baseline; the old production app bundle predated Claude's new response contracts, so no app-screen before/after usability claim is made. QA uses fictional local simulation data. No additional imagery or placeholders are needed.
+
+The core brand changes were included by a concurrent Claude commit (`68a2d4b`) alongside its independent discovery improvements. This finishing slice changes only CSS and design/verification documents; it preserves that history. No backend, shared schema, database, environment, sending or AI behavior was changed by the UI work. The VPS database was never migrated or written. Temporary QA servers on 3303/3310 were stopped; the user's existing development servers and PostgreSQL were left running.
