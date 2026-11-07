@@ -350,10 +350,17 @@ export function ProspectDelivery({
 }
 // Approved emails waiting to go out, across the whole workspace (not just this page).
 // Shown as a visible bar so reviewed work never sits unnoticed.
-export function BulkEmailQueue({ onQueued }: { onQueued: () => void }) {
+export function BulkEmailQueue({
+  onQueued,
+  onShowReview,
+}: {
+  onQueued: () => void;
+  onShowReview: () => void;
+}) {
   const settings = useResource("/settings", settingsSchema);
   const outbox = useResource("/deliveries", outboxListSchema);
   const approved = useResource("/prospects?status=approved", prospectListSchema);
+  const review = useResource("/prospects?status=review", prospectListSchema);
   const [open, setOpen] = useState(false);
   const [unselected, setUnselected] = useState<string[]>([]);
   const eligible = (approved.data?.data || []).filter(
@@ -364,13 +371,36 @@ export function BulkEmailQueue({ onQueued }: { onQueued: () => void }) {
       !outbox.data?.some((d) => d.prospectId === p.id && pending(d)),
   );
   const chosen = eligible.filter((p) => !unselected.includes(p.id));
-  if (!eligible.length) return null;
+  // Always visible, so the team knows where scheduling lives even when nothing is ready.
+  if (!eligible.length)
+    return (
+      <section className="ready-bar ready-empty" aria-labelledby="ready-title">
+        <div className="ready-head">
+          <p id="ready-title">
+            <strong>Schedule emails</strong>
+            <span className="hint">
+              {" "}
+              · Nothing approved yet.
+              {review.data?.total
+                ? ` ${review.data.total} draft${review.data.total === 1 ? " is" : "s are"} waiting in To review: open each, check it and click Approve, then schedule them here.`
+                : " Approve drafts first, then schedule them here."}
+            </span>
+          </p>
+          {Boolean(review.data?.total) && (
+            <button type="button" onClick={onShowReview}>
+              Go to To review
+            </button>
+          )}
+        </div>
+      </section>
+    );
   return (
     <section className="ready-bar" aria-labelledby="ready-title">
       <div className="ready-head">
         <p id="ready-title">
           <strong>
-            {eligible.length} approved email{eligible.length === 1 ? "" : "s"} ready to send
+            Schedule emails: {eligible.length} approved email{eligible.length === 1 ? "" : "s"}{" "}
+            ready to send
           </strong>
           <span className="hint"> · reviewed and waiting for a time slot</span>
         </p>

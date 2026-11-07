@@ -1430,3 +1430,7 @@ tr.muted td {
 .ready-list small {
   color: var(--color-muted);
 }
+.ready-empty {
+  border-color: var(--color-rule);
+  background: transparent;
+}

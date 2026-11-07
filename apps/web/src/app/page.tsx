@@ -122,7 +122,13 @@ function Prospects() {
         </Notice>
       )}
       <MapsImport campaigns={offers.data || []} onImported={reload} />
-      <BulkEmailQueue onQueued={reload} />
+      <BulkEmailQueue
+        onQueued={reload}
+        onShowReview={() => {
+          setStatus("review");
+          setPage(1);
+        }}
+      />
       <BulkOffer
         selected={(list.data?.data || []).filter((p) => picked.has(p.id))}
         campaigns={offers.data || []}
