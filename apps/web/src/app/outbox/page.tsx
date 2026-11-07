@@ -1,4 +1,5 @@
 "use client";
+import { HelpButton } from "@/components/glossary";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { outboxListSchema, prospectSchema } from "@qublox-sales/shared";
@@ -24,10 +25,10 @@ function Outbox() {
     <>
       <div className="page-head">
         <div>
-          <h1>Reviewed, then sent.</h1>
+          <h1>Outbox</h1>
           <p>
-            Scheduled Gmail emails and their results. Account and team limits can postpone requested
-            times.
+            Approved emails waiting to go out through Gmail, and what happened to each. The daily
+            limit and spacing between sends can push a requested time later.
           </p>
         </div>
         <button onClick={list.reload}>Refresh</button>
@@ -48,7 +49,9 @@ function Outbox() {
                 <th>Business</th>
                 <th>Recipient / sender</th>
                 <th>Requested time</th>
-                <th>Status</th>
+                <th>
+                  Status <HelpButton topic="outbox" label="outbox status" />
+                </th>
                 <th>Actions</th>
               </tr>
             </thead>

@@ -43,31 +43,53 @@ export function GmailSender({ settings, onChange }: { settings: Settings; onChan
   return (
     <section className="entry-panel" aria-labelledby="gmail-sender-title">
       <div className="section-title">
-        <h2 id="gmail-sender-title">Your Gmail sender</h2>
-        {settings.role === "admin" && <span className="status status-approved">admin</span>}
+        <h2 id="gmail-sender-title">Your Gmail</h2>
+        {!editing &&
+          (mine ? (
+            <div className="actions">
+              <button onClick={() => setEditing(true)} disabled={busy}>
+                Update
+              </button>
+              <button
+                className="text-button danger"
+                onClick={() => remove(mine.id, mine.email)}
+                disabled={busy}
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <button className="primary" onClick={() => setEditing(true)}>
+              Connect Gmail
+            </button>
+          ))}
       </div>
       {error && <Notice error>{error}</Notice>}
       {notice && <Notice>{notice}</Notice>}
-      {mine && !editing ? (
-        <div className="form-stack">
-          <p>
-            Sending as <strong>{mine.displayName}</strong> ({mine.email}). Emails you send say
-            &ldquo;{mine.displayName} here from {settings.companyName}&rdquo;. Login checked{" "}
-            {date(mine.verifiedAt)}.
+      {!editing ? (
+        mine ? (
+          <dl className="summary-row">
+            <div>
+              <dt>Sending from</dt>
+              <dd>{mine.email}</dd>
+            </div>
+            <div>
+              <dt>Signs as</dt>
+              <dd>
+                &ldquo;{mine.displayName} here from {settings.companyName}&rdquo;
+              </dd>
+            </div>
+            <div>
+              <dt>Login checked</dt>
+              <dd>{date(mine.verifiedAt)}</dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="hint">
+            Not connected. Connect your Gmail to send approved emails straight from the app. It
+            takes about two minutes.
           </p>
-          <div className="actions">
-            <button onClick={() => setEditing(true)} disabled={busy}>
-              Update App Password or name
-            </button>
-            <button
-              className="text-button danger"
-              onClick={() => remove(mine.id, mine.email)}
-              disabled={busy}
-            >
-              Disconnect
-            </button>
-          </div>
-        </div>
+        )
       ) : (
         <>
           <ol className="setup-steps">
@@ -147,19 +169,17 @@ export function GmailSender({ settings, onChange }: { settings: Settings; onChan
                 <button className="primary">
                   {busy ? "Checking with Gmail…" : "Connect Gmail"}
                 </button>
-                {editing && (
-                  <button type="button" onClick={() => setEditing(false)}>
-                    Cancel
-                  </button>
-                )}
+                <button type="button" onClick={() => setEditing(false)} disabled={busy}>
+                  Cancel
+                </button>
               </div>
             </fieldset>
           </form>
         </>
       )}
       {settings.role === "admin" && (
-        <div className="source">
-          <h3>Team senders</h3>
+        <details className="source">
+          <summary>Teammates&rsquo; Gmail ({team.length} connected)</summary>
           {team.length ? (
             <ul className="sender-list">
               {team.map((m) => (
@@ -182,11 +202,10 @@ export function GmailSender({ settings, onChange }: { settings: Settings; onChan
             <p className="hint">No teammate has connected a Gmail yet.</p>
           )}
           <p className="hint">
-            Teammates connect their own Gmail here after signing in. Add people with{" "}
-            <code>bun run team:add</code> and make someone an admin with{" "}
-            <code>bun run team:role --email … --role admin</code>.
+            Each teammate connects their own Gmail after signing in. As an admin you can send from
+            any of these.
           </p>
-        </div>
+        </details>
       )}
     </section>
   );

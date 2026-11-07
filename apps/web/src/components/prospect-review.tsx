@@ -24,6 +24,7 @@ import { useResource } from "@/lib/use-resource";
 import { campaignsSchema } from "./prospect-entry";
 import { External, Loading, Notice, Status } from "./workspace";
 import { AuditSummary, OpportunityBadge } from "./opportunity";
+import { HelpButton } from "./glossary";
 
 type Action =
   | "approve"
@@ -149,6 +150,7 @@ export function ProspectReview({ id }: { id: string }) {
           <p>
             {p.website ? <External href={p.website}>{p.domain}</External> : "No website"}{" "}
             <span aria-hidden="true"> · </span> <Status value={p.status} />
+            <HelpButton topic="statuses" label="this status" />
           </p>
         </div>
         <div className="actions">
@@ -290,7 +292,9 @@ export function ProspectReview({ id }: { id: string }) {
             </span>
           </div>
           <dl className="facts">
-            <dt>Opportunity</dt>
+            <dt>
+              Opportunity <HelpButton topic="opportunity" label="opportunity" />
+            </dt>
             <dd>
               {p.opportunity === null ? (
                 "Not scored yet"
@@ -313,7 +317,9 @@ export function ProspectReview({ id }: { id: string }) {
                 </dd>
               </>
             )}
-            <dt>Email</dt>
+            <dt>
+              Email <HelpButton topic="email-check" label="the email check" />
+            </dt>
             <dd>
               {p.email || "Not found"}
               {p.email && (
@@ -430,6 +436,7 @@ export function ProspectReview({ id }: { id: string }) {
             <h2>The message</h2>
             <span className="hint">
               {p.score === null ? "Not scored" : `Signal ${p.score} / 3`}
+              <HelpButton topic="signal" label="signal" />
             </span>
           </div>
           <DraftEditor

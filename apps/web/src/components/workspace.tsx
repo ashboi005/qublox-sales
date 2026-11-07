@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { LogOut, ArrowUpRight, LoaderCircle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { message } from "@/lib/api";
+import { Glossary, openGlossary } from "./glossary";
 
 export function Loading({ label = "Loading workspace…" }: { label?: string }) {
   return (
@@ -98,6 +99,9 @@ export function Workspace({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="identity">
+          <button type="button" className="text-button help-link" onClick={() => openGlossary()}>
+            Help
+          </button>
           <span title={data.user.email}>{data.user.name}</span>
           <button
             className="icon-button"
@@ -116,6 +120,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </header>
+      <Glossary />
       <main id="main" className="workspace">
         {signOutError && <Notice error>{signOutError}</Notice>}
         {children}

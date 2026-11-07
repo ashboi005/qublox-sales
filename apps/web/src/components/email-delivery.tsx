@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   queueEmailResult,
   outboxListSchema,
+  listSchema as prospectListSchema,
   prospectSchema,
   settingsSchema,
   type Prospect,
@@ -347,88 +348,83 @@ export function ProspectDelivery({
     </section>
   );
 }
-export function BulkEmailQueue({
-  records,
-  onQueued,
-}: {
-  records: Prospect[];
-  onQueued: () => void;
-}) {
+// Approved emails waiting to go out, across the whole workspace (not just this page).
+// Shown as a visible bar so reviewed work never sits unnoticed.
+export function BulkEmailQueue({ onQueued }: { onQueued: () => void }) {
   const settings = useResource("/settings", settingsSchema);
   const outbox = useResource("/deliveries", outboxListSchema);
-  const [selected, setSelected] = useState<string[]>([]);
-  const eligible = records.filter(
+  const approved = useResource("/prospects?status=approved", prospectListSchema);
+  const [open, setOpen] = useState(false);
+  const [unselected, setUnselected] = useState<string[]>([]);
+  const eligible = (approved.data?.data || []).filter(
     (p) =>
       p.channel === "email" &&
-      p.status === "approved" &&
+      p.email &&
       p.approvalVersion === p.version &&
       !outbox.data?.some((d) => d.prospectId === p.id && pending(d)),
   );
-  const chosen = eligible.filter((p) => selected.includes(p.id));
+  const chosen = eligible.filter((p) => !unselected.includes(p.id));
+  if (!eligible.length) return null;
   return (
-    <details className="entry-panel">
-      <summary>Schedule reviewed emails</summary>
-      <p>
-        Select approved email drafts from this page. Review and approve each draft before adding it
-        to a batch.
-      </p>
-      {!eligible.length ? (
-        <p>
-          No approved emails are available to queue on this page. Pending emails are in the outbox.
+    <section className="ready-bar" aria-labelledby="ready-title">
+      <div className="ready-head">
+        <p id="ready-title">
+          <strong>
+            {eligible.length} approved email{eligible.length === 1 ? "" : "s"} ready to send
+          </strong>
+          <span className="hint"> · reviewed and waiting for a time slot</span>
         </p>
-      ) : (
+        <button className={open ? undefined : "primary"} onClick={() => setOpen(!open)}>
+          {open ? "Close" : "Schedule them"}
+        </button>
+      </div>
+      {open && (
         <>
-          <button
-            type="button"
-            onClick={() =>
-              setSelected(chosen.length === eligible.length ? [] : eligible.map((p) => p.id))
-            }
-          >
-            {chosen.length === eligible.length
-              ? "Clear selection"
-              : "Select approved drafts on this page"}
-          </button>
-          <div className="source">
+          <div className="ready-list">
             {eligible.map((p) => (
               <label className="check-label" key={p.id}>
                 <input
                   type="checkbox"
-                  checked={selected.includes(p.id)}
+                  checked={!unselected.includes(p.id)}
                   onChange={(e) =>
-                    setSelected((old) =>
-                      e.target.checked ? [...old, p.id] : old.filter((id) => id !== p.id),
+                    setUnselected((old) =>
+                      e.target.checked ? old.filter((id) => id !== p.id) : [...old, p.id],
                     )
                   }
                 />
-                {p.name} · {p.email}
+                <span>
+                  {p.name} <small>{p.email}</small>
+                </span>
               </label>
             ))}
           </div>
+          {settings.error && <Notice error>{settings.error}</Notice>}
+          {outbox.error && (
+            <Notice error>
+              {outbox.error}{" "}
+              <button type="button" onClick={outbox.reload}>
+                Refresh outbox
+              </button>
+            </Notice>
+          )}
+          {settings.data && (
+            <EmailQueueForm
+              prospects={chosen}
+              settings={settings.data}
+              onQueued={() => {
+                setUnselected([]);
+                setOpen(false);
+                outbox.reload();
+                approved.reload();
+                onQueued();
+              }}
+              disabled={outbox.loading || !!outbox.error}
+              bulk
+            />
+          )}
         </>
       )}
-      {settings.error && <Notice error>{settings.error}</Notice>}
-      {outbox.error && (
-        <Notice error>
-          {outbox.error}{" "}
-          <button type="button" onClick={outbox.reload}>
-            Refresh outbox
-          </button>
-        </Notice>
-      )}
-      {settings.data && (
-        <EmailQueueForm
-          prospects={chosen}
-          settings={settings.data}
-          onQueued={() => {
-            setSelected([]);
-            outbox.reload();
-            onQueued();
-          }}
-          disabled={outbox.loading || !!outbox.error}
-          bulk
-        />
-      )}
-    </details>
+    </section>
   );
 }
 

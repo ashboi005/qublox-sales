@@ -1,4 +1,5 @@
 "use client";
+import { HelpButton } from "@/components/glossary";
 import Link from "next/link";
 import { useState } from "react";
 import { listSchema, prospectSchema } from "@qublox-sales/shared";
@@ -26,10 +27,11 @@ function FollowUps() {
     <>
       <div className="page-head">
         <div>
-          <h1>Make room for the reply.</h1>
+          <h1>Follow-ups</h1>
           <p>
-            One manual follow-up, seven days after the first contact. Replies and do-not-contact
-            requests stop the reminder.
+            Leads you contacted 7 or more days ago with no reply yet. Send one follow-up, or record
+            what happened: replied, meeting set, or close the lead. A reply or a do-not-contact
+            request removes it from this list.
           </p>
         </div>
       </div>
@@ -75,7 +77,9 @@ function FollowUps() {
               <thead>
                 <tr>
                   <th>Business</th>
-                  <th>Channel</th>
+                  <th>
+                    Channel <HelpButton topic="channel" label="channel" />
+                  </th>
                   <th>First contact</th>
                   <th>Follow-up</th>
                   <th>Record activity</th>

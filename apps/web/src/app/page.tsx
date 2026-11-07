@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Plus, Upload, ArrowRight, Search } from "lucide-react";
-import { listSchema, overviewSchema, statuses, verificationLabel } from "@qublox-sales/shared";
+import { listSchema, overviewSchema, verificationLabel } from "@qublox-sales/shared";
 import { OpportunityBadge } from "@/components/opportunity";
+import { HelpButton } from "@/components/glossary";
 import { Workspace, Loading, Empty, Notice, Status } from "@/components/workspace";
 import { campaignsSchema, ProspectEntry } from "@/components/prospect-entry";
 import { BulkEmailQueue } from "@/components/email-delivery";
@@ -59,8 +60,8 @@ function Prospects() {
     <>
       <div className="page-head">
         <div>
-          <h1>Prospects, with a reason to talk.</h1>
-          <p>A small, considered list. Find the signal, review the message, then reach out.</p>
+          <h1>Prospects</h1>
+          <p>Find businesses, review the drafted message, then reach out.</p>
         </div>
         <div className="actions">
           <button onClick={() => setEntry(entry === "import" ? null : "import")}>
@@ -121,7 +122,7 @@ function Prospects() {
         </Notice>
       )}
       <MapsImport campaigns={offers.data || []} onImported={reload} />
-      <BulkEmailQueue records={list.data?.data || []} onQueued={reload} />
+      <BulkEmailQueue onQueued={reload} />
       <BulkOffer
         selected={(list.data?.data || []).filter((p) => picked.has(p.id))}
         campaigns={offers.data || []}
@@ -132,12 +133,14 @@ function Prospects() {
         {(
           [
             ["", "All"],
+            ["new", "New"],
             ["review", "To review"],
             ["approved", "Approved"],
             ["contacted", "Contacted"],
             ["replied", "Replied"],
             ["meeting", "Meeting set"],
             ["closed", "Closed"],
+            ["skipped", "Skipped"],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -152,6 +155,7 @@ function Prospects() {
             {label}
           </button>
         ))}
+        <HelpButton topic="statuses" label="each stage" />
       </div>
       <div className="toolbar">
         <form
@@ -174,23 +178,6 @@ function Prospects() {
           <button aria-label="Search">
             <Search size={17} />
           </button>
-          <label>
-            <span className="visually-hidden">Filter by status</span>
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">All statuses</option>
-              {statuses.map((s) => (
-                <option key={s} value={s}>
-                  {s[0]!.toUpperCase() + s.slice(1)}
-                </option>
-              ))}
-            </select>
-          </label>
           <label>
             <span className="visually-hidden">Filter by offer</span>
             <select
@@ -272,12 +259,19 @@ function Prospects() {
                   </th>
                   <th>Business / domain</th>
                   <th>Offer</th>
-                  <th>Channel</th>
-                  <th>Opportunity</th>
-                  <th>Signal</th>
-                  <th>Status</th>
+                  <th>
+                    Channel <HelpButton topic="channel" label="channel" />
+                  </th>
+                  <th>
+                    Opportunity <HelpButton topic="opportunity" label="opportunity" />
+                  </th>
+                  <th>
+                    Signal <HelpButton topic="signal" label="signal" />
+                  </th>
+                  <th>
+                    Status <HelpButton topic="statuses" label="status" />
+                  </th>
                   <th>Last contact</th>
-                  <th>Updated</th>
                   <th>
                     <span className="visually-hidden">Review</span>
                   </th>
@@ -347,7 +341,6 @@ function Prospects() {
                         <small>Follow up {date(p.followUpAt)}</small>
                       )}
                     </td>
-                    <td className="muted">{date(p.updatedAt)}</td>
                     <td>
                       <Link href={`/prospects/${p.id}`} aria-label={`Review ${p.name}`}>
                         <ArrowRight size={18} />

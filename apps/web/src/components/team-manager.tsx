@@ -18,6 +18,7 @@ export function TeamManager() {
   const [notice, setNotice] = useState("");
   const [secret, setSecret] = useState<{ email: string; password: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [adding, setAdding] = useState(false);
   const run = async (work: () => Promise<void>) => {
     setBusy(true);
     setError("");
@@ -39,8 +40,16 @@ export function TeamManager() {
     <section className="entry-panel" aria-labelledby="team-title">
       <div className="section-title">
         <h2 id="team-title">Team</h2>
-        <span className="hint">Admins only</span>
+        {!adding && (
+          <button className="primary" type="button" onClick={() => setAdding(true)}>
+            Add teammate
+          </button>
+        )}
       </div>
+      <p className="hint">
+        Only admins see this. Members send from their own Gmail; admins can also use
+        everyone&rsquo;s Gmail and manage the team.
+      </p>
       {error && <Notice error>{error}</Notice>}
       {notice && <Notice>{notice}</Notice>}
       {secret && (
@@ -68,48 +77,54 @@ export function TeamManager() {
           </div>
         </div>
       )}
-      <form
-        className="form-grid"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const form = e.currentTarget;
-          const fields = new FormData(form);
-          void run(async () => {
-            const result = await api("/team", added, {
-              method: "POST",
-              body: {
-                name: String(fields.get("name") || ""),
-                email: String(fields.get("email") || ""),
-                role: String(fields.get("role") || "member"),
-              },
+      {adding && (
+        <form
+          className="form-grid source"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            const fields = new FormData(form);
+            void run(async () => {
+              const result = await api("/team", added, {
+                method: "POST",
+                body: {
+                  name: String(fields.get("name") || ""),
+                  email: String(fields.get("email") || ""),
+                  role: String(fields.get("role") || "member"),
+                },
+              });
+              form.reset();
+              setAdding(false);
+              setNotice(result.reactivated ? "Access restored." : "Teammate added.");
+              showSecret(result);
             });
-            form.reset();
-            setNotice(result.reactivated ? "Access restored." : "Teammate added.");
-            showSecret(result);
-          });
-        }}
-      >
-        <fieldset className="form-grid span-full" disabled={busy}>
-          <label>
-            Name
-            <input name="name" required maxLength={80} placeholder="Mania" />
-          </label>
-          <label>
-            Email
-            <input name="email" type="email" required placeholder="mania@gmail.com" />
-          </label>
-          <label>
-            Role
-            <select name="role" defaultValue="member">
-              <option value="member">Member: sends from their own Gmail</option>
-              <option value="admin">Admin: all Gmail senders and team management</option>
-            </select>
-          </label>
-          <div className="span-full">
-            <button className="primary">{busy ? "Working…" : "Add teammate"}</button>
-          </div>
-        </fieldset>
-      </form>
+          }}
+        >
+          <fieldset className="form-grid span-full" disabled={busy}>
+            <label>
+              Name
+              <input name="name" required maxLength={80} placeholder="Mania" />
+            </label>
+            <label>
+              Email
+              <input name="email" type="email" required placeholder="mania@gmail.com" />
+            </label>
+            <label>
+              Role
+              <select name="role" defaultValue="member">
+                <option value="member">Member: sends from their own Gmail</option>
+                <option value="admin">Admin: all Gmail senders and team management</option>
+              </select>
+            </label>
+            <div className="span-full actions">
+              <button className="primary">{busy ? "Working…" : "Add and create password"}</button>
+              <button type="button" onClick={() => setAdding(false)} disabled={busy}>
+                Cancel
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      )}
       {team.loading && !team.data ? (
         <Loading label="Loading the team…" />
       ) : (
